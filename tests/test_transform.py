@@ -288,3 +288,98 @@ def test_build_person_empty():
     result = build_person(pd.DataFrame(), pd.DataFrame())
     assert result.empty
     assert "person_id" in result.columns
+
+
+def test_build_contributing_factor_deduplicates_across_columns():
+    from transform import build_contributing_factor
+    vehicles = pd.DataFrame([
+        {"unique_id": "V1", "contributing_factor_1": "Unsafe Speed", "contributing_factor_2": "Unsafe Speed"},
+        {"unique_id": "V2", "contributing_factor_1": "Glare", "contributing_factor_2": None},
+    ])
+    result = build_contributing_factor(vehicles)
+    assert len(result) == 2
+
+
+def test_build_contributing_factor_excludes_unspecified():
+    from transform import build_contributing_factor
+    vehicles = pd.DataFrame([{
+        "unique_id": "V1",
+        "contributing_factor_1": "Unspecified",
+        "contributing_factor_2": "Unsafe Speed",
+    }])
+    result = build_contributing_factor(vehicles)
+    assert len(result) == 1
+    assert result.iloc[0]["factor_code"] == "Unsafe Speed"
+
+
+def test_build_contributing_factor_maps_category():
+    from transform import build_contributing_factor
+    vehicles = pd.DataFrame([{
+        "unique_id": "V1",
+        "contributing_factor_1": "Glare",
+        "contributing_factor_2": None,
+    }])
+    result = build_contributing_factor(vehicles)
+    assert result.iloc[0]["factor_category"] == "Environmental"
+
+
+def test_build_contributing_factor_unknown_maps_to_unknown():
+    from transform import build_contributing_factor
+    vehicles = pd.DataFrame([{
+        "unique_id": "V1",
+        "contributing_factor_1": "Something Weird",
+        "contributing_factor_2": None,
+    }])
+    result = build_contributing_factor(vehicles)
+    assert result.iloc[0]["factor_category"] == "Unknown"
+
+
+def test_build_contributing_factor_empty():
+    from transform import build_contributing_factor
+    result = build_contributing_factor(pd.DataFrame())
+    assert result.empty
+    assert list(result.columns) == ["factor_id", "factor_code", "factor_description", "factor_category"]
+
+
+def test_build_vehicle_factor_creates_junction_rows():
+    from transform import build_contributing_factor, build_vehicle_factor
+    vehicles = pd.DataFrame([{
+        "unique_id": "V1",
+        "contributing_factor_1": "Unsafe Speed",
+        "contributing_factor_2": "Glare",
+    }])
+    factors = build_contributing_factor(vehicles)
+    result = build_vehicle_factor(vehicles, factors)
+    assert len(result) == 2
+    assert set(result.columns) == {"vehicle_factor_id", "vehicle_id", "factor_id"}
+
+
+def test_build_vehicle_factor_deduplicates_same_factor_twice():
+    from transform import build_contributing_factor, build_vehicle_factor
+    vehicles = pd.DataFrame([{
+        "unique_id": "V1",
+        "contributing_factor_1": "Unsafe Speed",
+        "contributing_factor_2": "Unsafe Speed",
+    }])
+    factors = build_contributing_factor(vehicles)
+    result = build_vehicle_factor(vehicles, factors)
+    assert len(result) == 1
+
+
+def test_build_vehicle_factor_skips_unresolved_factors():
+    from transform import build_vehicle_factor
+    vehicles = pd.DataFrame([{
+        "unique_id": "V1",
+        "contributing_factor_1": "Unknown Factor XYZ",
+        "contributing_factor_2": None,
+    }])
+    factors_df = pd.DataFrame(columns=["factor_id", "factor_code", "factor_description", "factor_category"])
+    result = build_vehicle_factor(vehicles, factors_df)
+    assert result.empty
+
+
+def test_build_vehicle_factor_empty_vehicles():
+    from transform import build_vehicle_factor
+    result = build_vehicle_factor(pd.DataFrame(), pd.DataFrame())
+    assert result.empty
+    assert "vehicle_factor_id" in result.columns

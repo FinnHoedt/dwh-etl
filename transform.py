@@ -180,3 +180,103 @@ def build_person(persons: pd.DataFrame, person_types: pd.DataFrame) -> pd.DataFr
         "age": pd.to_numeric(_col(persons, "person_age"), errors="coerce"),
         "sex": _col(persons, "person_sex"),
     })
+
+
+FACTOR_CATEGORIES: dict[str, str] = {
+    "Driver Inattention/Distraction": "Driver Error",
+    "Fatigued/Drowsy": "Driver Error",
+    "Aggressive Driving/Road Rage": "Driver Error",
+    "Unsafe Speed": "Driver Error",
+    "Following Too Closely": "Driver Error",
+    "Failure to Yield Right-of-Way": "Driver Error",
+    "Passing or Lane Usage Improper": "Driver Error",
+    "Unsafe Lane Changing": "Driver Error",
+    "Backing Unsafely": "Driver Error",
+    "Passing Too Closely": "Driver Error",
+    "Turning Improperly": "Driver Error",
+    "Traffic Control Disregarded": "Driver Error",
+    "Lost Consciousness": "Driver Error",
+    "Fell Asleep": "Driver Error",
+    "Alcohol Involvement": "Driver Error",
+    "Drugs (illegal)": "Driver Error",
+    "Prescription Medication": "Driver Error",
+    "Cell Phone (hands-free)": "Driver Error",
+    "Cell Phone (hand-held)": "Driver Error",
+    "Outside Car Distraction": "Driver Error",
+    "Eating or Drinking": "Driver Error",
+    "Brakes Defective": "Vehicle Defect",
+    "Tires Defective": "Vehicle Defect",
+    "Steering Failure": "Vehicle Defect",
+    "Accelerator Defective": "Vehicle Defect",
+    "Headlights Defective": "Vehicle Defect",
+    "Windshield Inadequate": "Vehicle Defect",
+    "Other Lighting Defects": "Vehicle Defect",
+    "Vehicle Vandalism": "Vehicle Defect",
+    "Oversized Vehicle": "Vehicle Defect",
+    "Glare": "Environmental",
+    "Pavement Slippery": "Environmental",
+    "View Obstructed/Limited": "Environmental",
+    "Pavement Defective": "Environmental",
+    "Lane Marking Improper/Inadequate": "Environmental",
+    "Traffic Control Device Improper/Non-Working": "Environmental",
+    "Obstruction/Debris in Road": "Environmental",
+}
+
+
+def build_contributing_factor(vehicles: pd.DataFrame) -> pd.DataFrame:
+    cols = ["factor_id", "factor_code", "factor_description", "factor_category"]
+    if vehicles.empty:
+        return pd.DataFrame(columns=cols)
+
+    factor_col_names = [c for c in ["contributing_factor_1", "contributing_factor_2"] if c in vehicles.columns]
+    if not factor_col_names:
+        return pd.DataFrame(columns=cols)
+
+    codes = (
+        pd.concat([vehicles[c] for c in factor_col_names])
+        .dropna()
+        .pipe(lambda s: s[s.str.strip() != ""])
+        .pipe(lambda s: s[s.str.lower() != "unspecified"])
+        .unique()
+    )
+    if len(codes) == 0:
+        return pd.DataFrame(columns=cols)
+
+    return pd.DataFrame({
+        "factor_id": range(1, len(codes) + 1),
+        "factor_code": codes,
+        "factor_description": codes,
+        "factor_category": [FACTOR_CATEGORIES.get(c, "Unknown") for c in codes],
+    })
+
+
+def build_vehicle_factor(vehicles: pd.DataFrame, factors: pd.DataFrame) -> pd.DataFrame:
+    cols = ["vehicle_factor_id", "vehicle_id", "factor_id"]
+    if vehicles.empty or factors.empty:
+        return pd.DataFrame(columns=cols)
+
+    factor_col_names = [c for c in ["contributing_factor_1", "contributing_factor_2"] if c in vehicles.columns]
+    if not factor_col_names:
+        return pd.DataFrame(columns=cols)
+
+    factor_lookup = dict(zip(factors["factor_code"], factors["factor_id"]))
+
+    parts = []
+    for col_name in factor_col_names:
+        part = vehicles[["unique_id", col_name]].copy()
+        part.columns = ["vehicle_id", "factor_code"]
+        parts.append(part)
+
+    combined = (
+        pd.concat(parts, ignore_index=True)
+        .dropna(subset=["factor_code"])
+        .pipe(lambda df: df[df["factor_code"].str.strip() != ""])
+        .pipe(lambda df: df[df["factor_code"].str.lower() != "unspecified"])
+        .drop_duplicates(subset=["vehicle_id", "factor_code"])
+    )
+    combined["factor_id"] = combined["factor_code"].map(factor_lookup)
+    combined = combined.dropna(subset=["factor_id"])
+
+    result = combined[["vehicle_id", "factor_id"]].reset_index(drop=True)
+    result.insert(0, "vehicle_factor_id", range(1, len(result) + 1))
+    return result
