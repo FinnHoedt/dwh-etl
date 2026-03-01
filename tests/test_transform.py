@@ -215,3 +215,76 @@ def test_build_vehicle_empty():
     result = build_vehicle(pd.DataFrame(), pd.DataFrame())
     assert result.empty
     assert "vehicle_id" in result.columns
+
+
+def test_build_person_type_deduplicates():
+    from transform import build_person_type
+    persons = pd.DataFrame([
+        {"unique_id": "P1", "person_type": "Occupant"},
+        {"unique_id": "P2", "person_type": "Occupant"},
+        {"unique_id": "P3", "person_type": "Pedestrian"},
+    ])
+    result = build_person_type(persons)
+    assert len(result) == 2
+
+
+def test_build_person_type_empty():
+    from transform import build_person_type
+    result = build_person_type(pd.DataFrame())
+    assert result.empty
+    assert list(result.columns) == ["person_type_id", "type_code", "type_description"]
+
+
+def test_build_person_uses_unique_id():
+    from transform import build_person, build_person_type
+    persons = pd.DataFrame([{
+        "unique_id": "P1", "collision_id": "1", "vehicle_id": "V1",
+        "person_type": "Occupant", "person_injury": "Injured",
+        "person_age": "34", "person_sex": "M",
+    }])
+    pt = build_person_type(persons)
+    result = build_person(persons, pt)
+    assert result.iloc[0]["person_id"] == "P1"
+
+
+def test_build_person_maps_type_id():
+    from transform import build_person, build_person_type
+    persons = pd.DataFrame([{
+        "unique_id": "P1", "collision_id": "1", "vehicle_id": "V1",
+        "person_type": "Pedestrian", "person_injury": "None",
+        "person_age": "25", "person_sex": "F",
+    }])
+    pt = build_person_type(persons)
+    result = build_person(persons, pt)
+    assert result.iloc[0]["person_type_id"] == pt.iloc[0]["person_type_id"]
+
+
+def test_build_person_vehicle_id_nullable():
+    from transform import build_person, build_person_type
+    persons = pd.DataFrame([{
+        "unique_id": "P1", "collision_id": "1", "vehicle_id": "",
+        "person_type": "Pedestrian", "person_injury": "None",
+        "person_age": "30", "person_sex": "M",
+    }])
+    pt = build_person_type(persons)
+    result = build_person(persons, pt)
+    assert pd.isna(result.iloc[0]["vehicle_id"])
+
+
+def test_build_person_coerces_age():
+    from transform import build_person, build_person_type
+    persons = pd.DataFrame([{
+        "unique_id": "P1", "collision_id": "1", "vehicle_id": "V1",
+        "person_type": "Occupant", "person_injury": "Injured",
+        "person_age": "not_a_number", "person_sex": "M",
+    }])
+    pt = build_person_type(persons)
+    result = build_person(persons, pt)
+    assert pd.isna(result.iloc[0]["age"])
+
+
+def test_build_person_empty():
+    from transform import build_person
+    result = build_person(pd.DataFrame(), pd.DataFrame())
+    assert result.empty
+    assert "person_id" in result.columns

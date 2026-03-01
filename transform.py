@@ -136,3 +136,47 @@ def build_vehicle(vehicles: pd.DataFrame, vehicle_types: pd.DataFrame) -> pd.Dat
         "state_registration": _col(vehicles, "state_registration"),
         "vehicle_year": pd.to_numeric(_col(vehicles, "vehicle_year"), errors="coerce"),
     })
+
+
+def build_person_type(persons: pd.DataFrame) -> pd.DataFrame:
+    cols = ["person_type_id", "type_code", "type_description"]
+    if persons.empty or "person_type" not in persons.columns:
+        return pd.DataFrame(columns=cols)
+
+    codes = (
+        persons["person_type"]
+        .dropna()
+        .pipe(lambda s: s[s.str.strip() != ""])
+        .unique()
+    )
+    if len(codes) == 0:
+        return pd.DataFrame(columns=cols)
+
+    return pd.DataFrame({
+        "person_type_id": range(1, len(codes) + 1),
+        "type_code": codes,
+        "type_description": codes,
+    })
+
+
+def build_person(persons: pd.DataFrame, person_types: pd.DataFrame) -> pd.DataFrame:
+    cols = ["person_id", "collision_id", "vehicle_id", "person_type_id", "injury_type", "age", "sex"]
+    if persons.empty:
+        return pd.DataFrame(columns=cols)
+
+    type_lookup = (
+        {} if person_types.empty
+        else dict(zip(person_types["type_code"], person_types["person_type_id"]))
+    )
+
+    vehicle_id = _col(persons, "vehicle_id").replace("", pd.NA)
+
+    return pd.DataFrame({
+        "person_id": persons["unique_id"],
+        "collision_id": persons["collision_id"],
+        "vehicle_id": vehicle_id,
+        "person_type_id": _col(persons, "person_type").map(type_lookup),
+        "injury_type": _col(persons, "person_injury"),
+        "age": pd.to_numeric(_col(persons, "person_age"), errors="coerce"),
+        "sex": _col(persons, "person_sex"),
+    })
