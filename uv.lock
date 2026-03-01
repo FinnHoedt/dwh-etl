@@ -88,7 +88,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pandas", specifier = ">=3.0.1" },
+    { name = "pandas", specifier = ">=3.0" },
     { name = "pyarrow", specifier = ">=15.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0" },
