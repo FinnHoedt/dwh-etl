@@ -7,6 +7,18 @@ import yaml
 from dotenv import load_dotenv
 from sodapy import Socrata
 
+from transform import (
+    build_borough,
+    build_contributing_factor,
+    build_crash,
+    build_location,
+    build_person,
+    build_person_type,
+    build_vehicle,
+    build_vehicle_factor,
+    build_vehicle_type,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,39 +46,14 @@ def fetch_dataset(client: Socrata, dataset_id: str, **kwargs) -> pd.DataFrame:
     return pd.DataFrame.from_records(records)
 
 
-def merge_datasets(
-    crashes: pd.DataFrame,
-    vehicles: pd.DataFrame,
-    persons: pd.DataFrame,
-) -> pd.DataFrame:
-    for df in [crashes, vehicles, persons]:
-        if not df.empty and "collision_id" in df.columns:
-            df["collision_id"] = df["collision_id"].astype(str)
-
-    merged = pd.merge(
-        crashes,
-        vehicles if not vehicles.empty else pd.DataFrame(columns=["collision_id"]),
-        on="collision_id",
-        how="left",
-        suffixes=("_crash", "_veh"),
-    )
-    return pd.merge(
-        merged,
-        persons if not persons.empty else pd.DataFrame(columns=["collision_id"]),
-        on="collision_id",
-        how="left",
-        suffixes=("", "_pers"),
-    )
-
-
-def write_output(df: pd.DataFrame, cfg: dict) -> None:
+def write_output(df: pd.DataFrame, cfg: dict, filename: str | None = None) -> None:
     out_cfg = cfg["output"]
     directory = Path(out_cfg["directory"])
     directory.mkdir(parents=True, exist_ok=True)
-    filename = out_cfg["filename"]
+    name = filename or out_cfg["filename"]
 
     for fmt in out_cfg.get("formats", []):
-        path = directory / f"{filename}.{fmt}"
+        path = directory / f"{name}.{fmt}"
         if fmt == "csv":
             df.to_csv(path, index=False)
             logger.info("Written CSV: %s", path)
@@ -114,14 +101,31 @@ def main() -> None:
     if persons.empty:
         logger.warning("No persons found for fetched crashes.")
 
-    final = merge_datasets(crashes, vehicles, persons)
+    boroughs = build_borough(crashes)
+    locations = build_location(crashes, boroughs)
+    crash_df = build_crash(crashes)
+    vehicle_types = build_vehicle_type(vehicles)
+    vehicle_df = build_vehicle(vehicles, vehicle_types)
+    person_types = build_person_type(persons)
+    person_df = build_person(persons, person_types)
+    factors = build_contributing_factor(vehicles)
+    vehicle_factors = build_vehicle_factor(vehicles, factors)
 
-    logger.info("Crashes:     %d", len(crashes))
-    logger.info("Vehicles:    %d", len(vehicles))
-    logger.info("Persons:     %d", len(persons))
-    logger.info("Merged rows: %d", len(final))
+    entities: dict[str, pd.DataFrame] = {
+        "borough": boroughs,
+        "location": locations,
+        "crash": crash_df,
+        "vehicle_type": vehicle_types,
+        "vehicle": vehicle_df,
+        "person_type": person_types,
+        "person": person_df,
+        "contributing_factor": factors,
+        "vehicle_factor": vehicle_factors,
+    }
 
-    write_output(final, cfg)
+    for name, df in entities.items():
+        logger.info("%-25s %d rows", name, len(df))
+        write_output(df, cfg, filename=name)
 
 
 if __name__ == "__main__":
