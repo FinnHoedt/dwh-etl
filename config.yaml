@@ -1,0 +1,14 @@
+socrata:
+  domain: data.cityofnewyork.us
+  datasets:
+    crashes: h9gi-nx95
+    persons: f55k-p6yu
+    vehicles: bm4k-52h4
+  limit: 100
+
+output:
+  directory: output
+  filename: crashes_merged
+  formats:
+    - csv
+    - parquet

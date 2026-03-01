@@ -1,0 +1,18 @@
+[project]
+name = "etl"
+version = "0.1.0"
+description = "NYC crash data ETL pipeline"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "python-dotenv>=1.0.0",
+    "pandas>=3.0.1",
+    "sodapy>=2.2.0",
+    "pyyaml>=6.0",
+    "pyarrow>=15.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
