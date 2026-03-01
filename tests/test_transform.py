@@ -94,3 +94,38 @@ def test_build_location_empty_crashes():
     result = build_location(pd.DataFrame(), pd.DataFrame())
     assert result.empty
     assert "location_id" in result.columns
+
+
+def test_build_crash_location_id_equals_collision_id():
+    from transform import build_crash
+    crashes = pd.DataFrame([{"collision_id": "99", "crash_date": "2024-01-01", "crash_time": "08:00"}])
+    result = build_crash(crashes)
+    assert result.iloc[0]["location_id"] == "99"
+    assert result.iloc[0]["collision_id"] == "99"
+
+
+def test_build_crash_coerces_injury_counts():
+    from transform import build_crash
+    crashes = pd.DataFrame([{
+        "collision_id": "1",
+        "number_of_persons_injured": "3",
+        "number_of_persons_killed": "bad",
+    }])
+    result = build_crash(crashes)
+    assert result.iloc[0]["number_of_persons_injured"] == 3
+    assert pd.isna(result.iloc[0]["number_of_persons_killed"])
+
+
+def test_build_crash_handles_missing_columns():
+    from transform import build_crash
+    crashes = pd.DataFrame([{"collision_id": "1"}])
+    result = build_crash(crashes)
+    assert "crash_date" in result.columns
+    assert pd.isna(result.iloc[0]["crash_date"])
+
+
+def test_build_crash_empty():
+    from transform import build_crash
+    result = build_crash(pd.DataFrame())
+    assert result.empty
+    assert "collision_id" in result.columns

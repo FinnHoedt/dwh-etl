@@ -46,3 +46,23 @@ def build_location(crashes: pd.DataFrame, boroughs: pd.DataFrame) -> pd.DataFram
         "latitude": pd.to_numeric(_col(crashes, "latitude"), errors="coerce"),
         "longitude": pd.to_numeric(_col(crashes, "longitude"), errors="coerce"),
     })
+
+
+def build_crash(crashes: pd.DataFrame) -> pd.DataFrame:
+    cols = ["collision_id", "crash_date", "crash_time", "location_id",
+            "number_of_persons_injured", "number_of_persons_killed"]
+    if crashes.empty:
+        return pd.DataFrame(columns=cols)
+
+    return pd.DataFrame({
+        "collision_id": crashes["collision_id"],
+        "crash_date": _col(crashes, "crash_date"),
+        "crash_time": _col(crashes, "crash_time"),
+        "location_id": crashes["collision_id"],
+        "number_of_persons_injured": pd.to_numeric(
+            _col(crashes, "number_of_persons_injured"), errors="coerce"
+        ),
+        "number_of_persons_killed": pd.to_numeric(
+            _col(crashes, "number_of_persons_killed"), errors="coerce"
+        ),
+    })
