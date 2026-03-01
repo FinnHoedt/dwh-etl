@@ -75,3 +75,54 @@ def write_output(df: pd.DataFrame, cfg: dict) -> None:
             logger.info("Written Parquet: %s", path)
         else:
             logger.warning("Unknown output format ignored: %s", fmt)
+
+
+def build_client(cfg: dict) -> Socrata:
+    load_dotenv()
+    return Socrata(
+        cfg["socrata"]["domain"],
+        os.getenv("APP_TOKEN"),
+        username=os.getenv("CLIENT_ID"),
+        password=os.getenv("CLIENT_SECRET"),
+    )
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    cfg = load_config()
+    client = build_client(cfg)
+
+    datasets = cfg["socrata"]["datasets"]
+    limit = cfg["socrata"]["limit"]
+
+    crashes = fetch_dataset(client, datasets["crashes"], limit=limit)
+    if crashes.empty:
+        logger.warning("No crashes fetched — exiting.")
+        return
+
+    if "collision_id" not in crashes.columns:
+        logger.error("Crashes dataset is missing 'collision_id' column — exiting.")
+        return
+
+    id_filter = build_id_filter(crashes["collision_id"].tolist())
+
+    vehicles = fetch_dataset(client, datasets["vehicles"], where=id_filter)
+    persons = fetch_dataset(client, datasets["persons"], where=id_filter)
+
+    if vehicles.empty:
+        logger.warning("No vehicles found for fetched crashes.")
+    if persons.empty:
+        logger.warning("No persons found for fetched crashes.")
+
+    final = merge_datasets(crashes, vehicles, persons)
+
+    logger.info("Crashes:     %d", len(crashes))
+    logger.info("Vehicles:    %d", len(vehicles))
+    logger.info("Persons:     %d", len(persons))
+    logger.info("Merged rows: %d", len(final))
+
+    write_output(final, cfg)
+
+
+if __name__ == "__main__":
+    main()
