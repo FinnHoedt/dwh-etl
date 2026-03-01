@@ -1,7 +1,5 @@
 import pytest
-import pandas as pd
 import yaml
-from pathlib import Path
 
 
 def test_load_config_returns_dict(tmp_path):
