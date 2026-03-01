@@ -129,3 +129,46 @@ def test_build_crash_empty():
     result = build_crash(pd.DataFrame())
     assert result.empty
     assert "collision_id" in result.columns
+
+
+def test_build_vehicle_type_deduplicates():
+    from transform import build_vehicle_type
+    vehicles = pd.DataFrame([
+        {"unique_id": "1", "vehicle_type_code": "Sedan"},
+        {"unique_id": "2", "vehicle_type_code": "Sedan"},
+        {"unique_id": "3", "vehicle_type_code": "Bus"},
+    ])
+    result = build_vehicle_type(vehicles)
+    assert len(result) == 2
+
+
+def test_build_vehicle_type_maps_known_category():
+    from transform import build_vehicle_type
+    vehicles = pd.DataFrame([{"unique_id": "1", "vehicle_type_code": "Sedan"}])
+    result = build_vehicle_type(vehicles)
+    assert result.iloc[0]["type_category"] == "Passenger Vehicle"
+
+
+def test_build_vehicle_type_unknown_maps_to_unknown():
+    from transform import build_vehicle_type
+    vehicles = pd.DataFrame([{"unique_id": "1", "vehicle_type_code": "Hovercraft"}])
+    result = build_vehicle_type(vehicles)
+    assert result.iloc[0]["type_category"] == "Unknown"
+
+
+def test_build_vehicle_type_excludes_null_and_empty():
+    from transform import build_vehicle_type
+    vehicles = pd.DataFrame([
+        {"unique_id": "1", "vehicle_type_code": "Sedan"},
+        {"unique_id": "2", "vehicle_type_code": None},
+        {"unique_id": "3", "vehicle_type_code": ""},
+    ])
+    result = build_vehicle_type(vehicles)
+    assert len(result) == 1
+
+
+def test_build_vehicle_type_empty():
+    from transform import build_vehicle_type
+    result = build_vehicle_type(pd.DataFrame())
+    assert result.empty
+    assert list(result.columns) == ["vehicle_type_id", "type_code", "type_description", "type_category"]

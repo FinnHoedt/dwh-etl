@@ -66,3 +66,54 @@ def build_crash(crashes: pd.DataFrame) -> pd.DataFrame:
             _col(crashes, "number_of_persons_killed"), errors="coerce"
         ),
     })
+
+
+VEHICLE_TYPE_CATEGORIES: dict[str, str] = {
+    "Sedan": "Passenger Vehicle",
+    "Station Wagon/Sport Utility Vehicle": "Passenger Vehicle",
+    "2-dr sedan": "Passenger Vehicle",
+    "4-dr sedan": "Passenger Vehicle",
+    "Van": "Passenger Vehicle",
+    "Pick-up Truck": "Passenger Vehicle",
+    "Convertible": "Passenger Vehicle",
+    "Minivan": "Passenger Vehicle",
+    "Box Truck": "Commercial",
+    "Flat Bed": "Commercial",
+    "Tractor Truck Diesel": "Commercial",
+    "Tractor Truck Gasoline": "Commercial",
+    "Bus": "Commercial",
+    "Large Com Veh(6+ Tons)": "Commercial",
+    "Small Com Veh(4 Tires)": "Commercial",
+    "Tanker": "Commercial",
+    "Garbage or Refuse": "Commercial",
+    "Dump": "Commercial",
+    "Carry All": "Commercial",
+    "Bike": "Bicycle",
+    "E-Bike": "Bicycle",
+    "E-Scooter": "Bicycle",
+    "Motorcycle": "Motorcycle",
+    "Moped": "Motorcycle",
+    "Motorbike": "Motorcycle",
+}
+
+
+def build_vehicle_type(vehicles: pd.DataFrame) -> pd.DataFrame:
+    cols = ["vehicle_type_id", "type_code", "type_description", "type_category"]
+    if vehicles.empty or "vehicle_type_code" not in vehicles.columns:
+        return pd.DataFrame(columns=cols)
+
+    codes = (
+        vehicles["vehicle_type_code"]
+        .dropna()
+        .pipe(lambda s: s[s.str.strip() != ""])
+        .unique()
+    )
+    if len(codes) == 0:
+        return pd.DataFrame(columns=cols)
+
+    return pd.DataFrame({
+        "vehicle_type_id": range(1, len(codes) + 1),
+        "type_code": codes,
+        "type_description": codes,
+        "type_category": [VEHICLE_TYPE_CATEGORIES.get(c, "Unknown") for c in codes],
+    })
