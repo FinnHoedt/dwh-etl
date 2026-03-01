@@ -117,3 +117,22 @@ def build_vehicle_type(vehicles: pd.DataFrame) -> pd.DataFrame:
         "type_description": codes,
         "type_category": [VEHICLE_TYPE_CATEGORIES.get(c, "Unknown") for c in codes],
     })
+
+
+def build_vehicle(vehicles: pd.DataFrame, vehicle_types: pd.DataFrame) -> pd.DataFrame:
+    cols = ["vehicle_id", "collision_id", "vehicle_type_id", "state_registration", "vehicle_year"]
+    if vehicles.empty:
+        return pd.DataFrame(columns=cols)
+
+    type_lookup = (
+        {} if vehicle_types.empty
+        else dict(zip(vehicle_types["type_code"], vehicle_types["vehicle_type_id"]))
+    )
+
+    return pd.DataFrame({
+        "vehicle_id": vehicles["unique_id"],
+        "collision_id": vehicles["collision_id"],
+        "vehicle_type_id": _col(vehicles, "vehicle_type_code").map(type_lookup),
+        "state_registration": _col(vehicles, "state_registration"),
+        "vehicle_year": pd.to_numeric(_col(vehicles, "vehicle_year"), errors="coerce"),
+    })

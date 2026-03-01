@@ -172,3 +172,46 @@ def test_build_vehicle_type_empty():
     result = build_vehicle_type(pd.DataFrame())
     assert result.empty
     assert list(result.columns) == ["vehicle_type_id", "type_code", "type_description", "type_category"]
+
+
+def test_build_vehicle_uses_unique_id():
+    from transform import build_vehicle, build_vehicle_type
+    vehicles = pd.DataFrame([{
+        "unique_id": "V1", "collision_id": "1",
+        "vehicle_type_code": "Sedan", "vehicle_year": "2018",
+        "state_registration": "NY",
+    }])
+    vt = build_vehicle_type(vehicles)
+    result = build_vehicle(vehicles, vt)
+    assert result.iloc[0]["vehicle_id"] == "V1"
+
+
+def test_build_vehicle_maps_type_id():
+    from transform import build_vehicle, build_vehicle_type
+    vehicles = pd.DataFrame([{
+        "unique_id": "V1", "collision_id": "1",
+        "vehicle_type_code": "Sedan", "vehicle_year": "2018",
+        "state_registration": "NY",
+    }])
+    vt = build_vehicle_type(vehicles)
+    result = build_vehicle(vehicles, vt)
+    assert result.iloc[0]["vehicle_type_id"] == vt.iloc[0]["vehicle_type_id"]
+
+
+def test_build_vehicle_coerces_year():
+    from transform import build_vehicle, build_vehicle_type
+    vehicles = pd.DataFrame([{
+        "unique_id": "V1", "collision_id": "1",
+        "vehicle_type_code": "Sedan", "vehicle_year": "bad",
+        "state_registration": "NY",
+    }])
+    vt = build_vehicle_type(vehicles)
+    result = build_vehicle(vehicles, vt)
+    assert pd.isna(result.iloc[0]["vehicle_year"])
+
+
+def test_build_vehicle_empty():
+    from transform import build_vehicle
+    result = build_vehicle(pd.DataFrame(), pd.DataFrame())
+    assert result.empty
+    assert "vehicle_id" in result.columns
