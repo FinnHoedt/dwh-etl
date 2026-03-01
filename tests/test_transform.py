@@ -134,9 +134,9 @@ def test_build_crash_empty():
 def test_build_vehicle_type_deduplicates():
     from transform import build_vehicle_type
     vehicles = pd.DataFrame([
-        {"unique_id": "1", "vehicle_type_code": "Sedan"},
-        {"unique_id": "2", "vehicle_type_code": "Sedan"},
-        {"unique_id": "3", "vehicle_type_code": "Bus"},
+        {"unique_id": "1", "vehicle_type": "Sedan"},
+        {"unique_id": "2", "vehicle_type": "Sedan"},
+        {"unique_id": "3", "vehicle_type": "Bus"},
     ])
     result = build_vehicle_type(vehicles)
     assert len(result) == 2
@@ -144,14 +144,14 @@ def test_build_vehicle_type_deduplicates():
 
 def test_build_vehicle_type_maps_known_category():
     from transform import build_vehicle_type
-    vehicles = pd.DataFrame([{"unique_id": "1", "vehicle_type_code": "Sedan"}])
+    vehicles = pd.DataFrame([{"unique_id": "1", "vehicle_type": "Sedan"}])
     result = build_vehicle_type(vehicles)
     assert result.iloc[0]["type_category"] == "Passenger Vehicle"
 
 
 def test_build_vehicle_type_unknown_maps_to_unknown():
     from transform import build_vehicle_type
-    vehicles = pd.DataFrame([{"unique_id": "1", "vehicle_type_code": "Hovercraft"}])
+    vehicles = pd.DataFrame([{"unique_id": "1", "vehicle_type": "Hovercraft"}])
     result = build_vehicle_type(vehicles)
     assert result.iloc[0]["type_category"] == "Unknown"
 
@@ -159,9 +159,9 @@ def test_build_vehicle_type_unknown_maps_to_unknown():
 def test_build_vehicle_type_excludes_null_and_empty():
     from transform import build_vehicle_type
     vehicles = pd.DataFrame([
-        {"unique_id": "1", "vehicle_type_code": "Sedan"},
-        {"unique_id": "2", "vehicle_type_code": None},
-        {"unique_id": "3", "vehicle_type_code": ""},
+        {"unique_id": "1", "vehicle_type": "Sedan"},
+        {"unique_id": "2", "vehicle_type": None},
+        {"unique_id": "3", "vehicle_type": ""},
     ])
     result = build_vehicle_type(vehicles)
     assert len(result) == 1
@@ -178,7 +178,7 @@ def test_build_vehicle_uses_unique_id():
     from transform import build_vehicle, build_vehicle_type
     vehicles = pd.DataFrame([{
         "unique_id": "V1", "collision_id": "1",
-        "vehicle_type_code": "Sedan", "vehicle_year": "2018",
+        "vehicle_type": "Sedan", "vehicle_year": "2018",
         "state_registration": "NY",
     }])
     vt = build_vehicle_type(vehicles)
@@ -190,7 +190,7 @@ def test_build_vehicle_maps_type_id():
     from transform import build_vehicle, build_vehicle_type
     vehicles = pd.DataFrame([{
         "unique_id": "V1", "collision_id": "1",
-        "vehicle_type_code": "Sedan", "vehicle_year": "2018",
+        "vehicle_type": "Sedan", "vehicle_year": "2018",
         "state_registration": "NY",
     }])
     vt = build_vehicle_type(vehicles)
@@ -202,7 +202,7 @@ def test_build_vehicle_coerces_year():
     from transform import build_vehicle, build_vehicle_type
     vehicles = pd.DataFrame([{
         "unique_id": "V1", "collision_id": "1",
-        "vehicle_type_code": "Sedan", "vehicle_year": "bad",
+        "vehicle_type": "Sedan", "vehicle_year": "bad",
         "state_registration": "NY",
     }])
     vt = build_vehicle_type(vehicles)

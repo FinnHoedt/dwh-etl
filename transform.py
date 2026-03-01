@@ -99,11 +99,11 @@ VEHICLE_TYPE_CATEGORIES: dict[str, str] = {
 
 def build_vehicle_type(vehicles: pd.DataFrame) -> pd.DataFrame:
     cols = ["vehicle_type_id", "type_code", "type_description", "type_category"]
-    if vehicles.empty or "vehicle_type_code" not in vehicles.columns:
+    if vehicles.empty or "vehicle_type" not in vehicles.columns:
         return pd.DataFrame(columns=cols)
 
     codes = (
-        vehicles["vehicle_type_code"]
+        vehicles["vehicle_type"]
         .dropna()
         .pipe(lambda s: s[s.str.strip() != ""])
         .unique()
@@ -132,7 +132,7 @@ def build_vehicle(vehicles: pd.DataFrame, vehicle_types: pd.DataFrame) -> pd.Dat
     return pd.DataFrame({
         "vehicle_id": vehicles["unique_id"],
         "collision_id": vehicles["collision_id"],
-        "vehicle_type_id": _col(vehicles, "vehicle_type_code").map(type_lookup),
+        "vehicle_type_id": _col(vehicles, "vehicle_type").map(type_lookup),
         "state_registration": _col(vehicles, "state_registration"),
         "vehicle_year": pd.to_numeric(_col(vehicles, "vehicle_year"), errors="coerce"),
     })
