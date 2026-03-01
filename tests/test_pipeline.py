@@ -40,3 +40,41 @@ def test_build_id_filter_empty_list():
     from main import build_id_filter
     result = build_id_filter([])
     assert result == "collision_id in()"
+
+
+import pandas as pd
+from unittest.mock import MagicMock
+
+
+def test_fetch_dataset_returns_dataframe():
+    from main import fetch_dataset
+    client = MagicMock()
+    client.get.return_value = [{"collision_id": "1", "crash_date": "2024-01-01"}]
+
+    result = fetch_dataset(client, "dataset-id", limit=1)
+
+    assert isinstance(result, pd.DataFrame)
+    assert len(result) == 1
+    assert "collision_id" in result.columns
+
+
+def test_fetch_dataset_empty_response_returns_empty_df():
+    from main import fetch_dataset
+    client = MagicMock()
+    client.get.return_value = []
+
+    result = fetch_dataset(client, "dataset-id")
+
+    assert isinstance(result, pd.DataFrame)
+    assert result.empty
+
+
+def test_fetch_dataset_api_error_returns_empty_df():
+    from main import fetch_dataset
+    client = MagicMock()
+    client.get.side_effect = Exception("API failure")
+
+    result = fetch_dataset(client, "dataset-id")
+
+    assert isinstance(result, pd.DataFrame)
+    assert result.empty
