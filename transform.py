@@ -36,9 +36,7 @@ def build_location(crashes: pd.DataFrame, boroughs: pd.DataFrame) -> pd.DataFram
         else dict(zip(boroughs["borough_name"], boroughs["borough_id"]))
     )
 
-    on_street = _col(crashes, "on_street_name")
-    cross_street = _col(crashes, "cross_street_name")
-    street = on_street.where(on_street.notna(), cross_street)
+    street = _col(crashes, "on_street_name").fillna(_col(crashes, "cross_street_name"))
 
     return pd.DataFrame({
         "location_id": crashes["collision_id"],
