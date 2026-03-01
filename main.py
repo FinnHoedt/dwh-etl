@@ -55,5 +55,5 @@ def merge_datasets(
         persons if not persons.empty else pd.DataFrame(columns=["collision_id"]),
         on="collision_id",
         how="left",
-        suffixes=("_crash", "_pers"),
+        suffixes=("", "_pers"),
     )
