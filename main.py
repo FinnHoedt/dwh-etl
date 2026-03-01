@@ -69,6 +69,9 @@ def write_output(df: pd.DataFrame, cfg: dict) -> None:
         path = directory / f"{filename}.{fmt}"
         if fmt == "csv":
             df.to_csv(path, index=False)
+            logger.info("Written CSV: %s", path)
         elif fmt == "parquet":
             df.to_parquet(path, index=False)
-        logger.info("Written %s: %s", fmt.upper(), path)
+            logger.info("Written Parquet: %s", path)
+        else:
+            logger.warning("Unknown output format ignored: %s", fmt)
