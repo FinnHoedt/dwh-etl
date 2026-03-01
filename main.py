@@ -57,3 +57,18 @@ def merge_datasets(
         how="left",
         suffixes=("", "_pers"),
     )
+
+
+def write_output(df: pd.DataFrame, cfg: dict) -> None:
+    out_cfg = cfg["output"]
+    directory = Path(out_cfg["directory"])
+    directory.mkdir(parents=True, exist_ok=True)
+    filename = out_cfg["filename"]
+
+    for fmt in out_cfg.get("formats", []):
+        path = directory / f"{filename}.{fmt}"
+        if fmt == "csv":
+            df.to_csv(path, index=False)
+        elif fmt == "parquet":
+            df.to_parquet(path, index=False)
+        logger.info("Written %s: %s", fmt.upper(), path)

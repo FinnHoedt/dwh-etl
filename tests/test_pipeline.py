@@ -139,3 +139,55 @@ def test_merge_datasets_casts_collision_id_to_str():
     result = merge_datasets(crashes, vehicles, persons)
 
     assert len(result) == 1
+
+
+def test_write_output_creates_csv(tmp_path):
+    from main import write_output
+    df = pd.DataFrame([{"col": "val"}])
+    cfg = {"output": {"directory": str(tmp_path), "filename": "result", "formats": ["csv"]}}
+
+    write_output(df, cfg)
+
+    assert (tmp_path / "result.csv").exists()
+
+
+def test_write_output_creates_parquet(tmp_path):
+    from main import write_output
+    df = pd.DataFrame([{"col": "val"}])
+    cfg = {"output": {"directory": str(tmp_path), "filename": "result", "formats": ["parquet"]}}
+
+    write_output(df, cfg)
+
+    assert (tmp_path / "result.parquet").exists()
+
+
+def test_write_output_creates_both(tmp_path):
+    from main import write_output
+    df = pd.DataFrame([{"col": "val"}])
+    cfg = {"output": {"directory": str(tmp_path), "filename": "result", "formats": ["csv", "parquet"]}}
+
+    write_output(df, cfg)
+
+    assert (tmp_path / "result.csv").exists()
+    assert (tmp_path / "result.parquet").exists()
+
+
+def test_write_output_creates_directory(tmp_path):
+    from main import write_output
+    df = pd.DataFrame([{"col": "val"}])
+    nested = tmp_path / "a" / "b"
+    cfg = {"output": {"directory": str(nested), "filename": "result", "formats": ["csv"]}}
+
+    write_output(df, cfg)
+
+    assert (nested / "result.csv").exists()
+
+
+def test_write_output_empty_dataframe_still_writes(tmp_path):
+    from main import write_output
+    df = pd.DataFrame()
+    cfg = {"output": {"directory": str(tmp_path), "filename": "result", "formats": ["csv"]}}
+
+    write_output(df, cfg)
+
+    assert (tmp_path / "result.csv").exists()
