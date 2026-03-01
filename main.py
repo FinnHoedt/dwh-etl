@@ -32,3 +32,28 @@ def fetch_dataset(client: Socrata, dataset_id: str, **kwargs) -> pd.DataFrame:
         return pd.DataFrame()
 
     return pd.DataFrame.from_records(records)
+
+
+def merge_datasets(
+    crashes: pd.DataFrame,
+    vehicles: pd.DataFrame,
+    persons: pd.DataFrame,
+) -> pd.DataFrame:
+    for df in [crashes, vehicles, persons]:
+        if not df.empty and "collision_id" in df.columns:
+            df["collision_id"] = df["collision_id"].astype(str)
+
+    merged = pd.merge(
+        crashes,
+        vehicles if not vehicles.empty else pd.DataFrame(columns=["collision_id"]),
+        on="collision_id",
+        how="left",
+        suffixes=("_crash", "_veh"),
+    )
+    return pd.merge(
+        merged,
+        persons if not persons.empty else pd.DataFrame(columns=["collision_id"]),
+        on="collision_id",
+        how="left",
+        suffixes=("_crash", "_pers"),
+    )

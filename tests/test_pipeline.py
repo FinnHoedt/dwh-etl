@@ -78,3 +78,64 @@ def test_fetch_dataset_api_error_returns_empty_df():
 
     assert isinstance(result, pd.DataFrame)
     assert result.empty
+
+
+def test_merge_datasets_joins_on_collision_id():
+    from main import merge_datasets
+    crashes = pd.DataFrame([{"collision_id": "1", "crash_date": "2024-01-01"}])
+    vehicles = pd.DataFrame([{"collision_id": "1", "vehicle_type": "Sedan"}])
+    persons = pd.DataFrame([{"collision_id": "1", "person_type": "Driver"}])
+
+    result = merge_datasets(crashes, vehicles, persons)
+
+    assert len(result) == 1
+    assert "crash_date" in result.columns
+    assert "vehicle_type" in result.columns
+    assert "person_type" in result.columns
+
+
+def test_merge_datasets_empty_vehicles_keeps_crash_rows():
+    from main import merge_datasets
+    crashes = pd.DataFrame([{"collision_id": "1", "crash_date": "2024-01-01"}])
+    persons = pd.DataFrame([{"collision_id": "1", "person_type": "Driver"}])
+
+    result = merge_datasets(crashes, pd.DataFrame(), persons)
+
+    assert len(result) == 1
+    assert "crash_date" in result.columns
+
+
+def test_merge_datasets_empty_persons_keeps_crash_rows():
+    from main import merge_datasets
+    crashes = pd.DataFrame([{"collision_id": "1", "crash_date": "2024-01-01"}])
+    vehicles = pd.DataFrame([{"collision_id": "1", "vehicle_type": "Sedan"}])
+
+    result = merge_datasets(crashes, vehicles, pd.DataFrame())
+
+    assert len(result) == 1
+    assert "vehicle_type" in result.columns
+
+
+def test_merge_datasets_multiple_vehicles_expands_rows():
+    from main import merge_datasets
+    crashes = pd.DataFrame([{"collision_id": "1", "crash_date": "2024-01-01"}])
+    vehicles = pd.DataFrame([
+        {"collision_id": "1", "vehicle_type": "Sedan"},
+        {"collision_id": "1", "vehicle_type": "SUV"},
+    ])
+    persons = pd.DataFrame()
+
+    result = merge_datasets(crashes, vehicles, persons)
+
+    assert len(result) == 2
+
+
+def test_merge_datasets_casts_collision_id_to_str():
+    from main import merge_datasets
+    crashes = pd.DataFrame([{"collision_id": 1, "crash_date": "2024-01-01"}])
+    vehicles = pd.DataFrame([{"collision_id": "1", "vehicle_type": "Sedan"}])
+    persons = pd.DataFrame()
+
+    result = merge_datasets(crashes, vehicles, persons)
+
+    assert len(result) == 1
