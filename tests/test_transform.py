@@ -1,3 +1,6 @@
+import json
+
+import geopandas as gpd
 import pandas as pd
 import pytest
 
@@ -383,3 +386,57 @@ def test_build_vehicle_factor_empty_vehicles():
     result = build_vehicle_factor(pd.DataFrame(), pd.DataFrame())
     assert result.empty
     assert "vehicle_factor_id" in result.columns
+
+
+def test_build_precinct_returns_correct_columns():
+    from transform import build_precinct, build_borough
+    crashes = pd.DataFrame([{"collision_id": "1", "borough": "MANHATTAN"}])
+    boroughs = build_borough(crashes)
+    precincts = pd.DataFrame([{"precinct": 1}])
+    result = build_precinct(precincts, boroughs)
+    assert list(result.columns) == ["precinct_id", "borough_id", "precinct_number", "precinct_name"]
+
+
+def test_build_precinct_maps_borough_id():
+    from transform import build_precinct, build_borough
+    crashes = pd.DataFrame([{"collision_id": "1", "borough": "MANHATTAN"}])
+    boroughs = build_borough(crashes)
+    precincts = pd.DataFrame([{"precinct": 1}])
+    result = build_precinct(precincts, boroughs)
+    assert result.iloc[0]["borough_id"] == boroughs.iloc[0]["borough_id"]
+
+
+def test_build_precinct_precinct_name_is_null():
+    from transform import build_precinct
+    precincts = pd.DataFrame([{"precinct": 1}])
+    result = build_precinct(precincts, pd.DataFrame())
+    assert pd.isna(result.iloc[0]["precinct_name"])
+
+
+def test_build_precinct_empty():
+    from transform import build_precinct
+    result = build_precinct(pd.DataFrame(), pd.DataFrame())
+    assert result.empty
+    assert list(result.columns) == ["precinct_id", "borough_id", "precinct_number", "precinct_name"]
+
+
+def test_parse_precincts_gdf_returns_geodataframe():
+    from transform import parse_precincts_gdf
+    precincts = pd.DataFrame([{
+        "precinct": 1,
+        "the_geom": json.dumps({
+            "type": "MultiPolygon",
+            "coordinates": [[[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]]
+        })
+    }])
+    result = parse_precincts_gdf(precincts)
+    assert isinstance(result, gpd.GeoDataFrame)
+    assert len(result) == 1
+    assert "geometry" in result.columns
+
+
+def test_parse_precincts_gdf_empty():
+    from transform import parse_precincts_gdf
+    result = parse_precincts_gdf(pd.DataFrame())
+    assert isinstance(result, gpd.GeoDataFrame)
+    assert result.empty

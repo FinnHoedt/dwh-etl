@@ -280,3 +280,78 @@ def build_vehicle_factor(vehicles: pd.DataFrame, factors: pd.DataFrame) -> pd.Da
     result = combined[["vehicle_id", "factor_id"]].reset_index(drop=True)
     result.insert(0, "vehicle_factor_id", range(1, len(result) + 1))
     return result
+
+
+import json
+import geopandas as gpd
+from shapely.geometry import shape
+
+
+PRECINCT_BOROUGHS: dict[int, str] = {
+    # Manhattan
+    1: "MANHATTAN", 5: "MANHATTAN", 6: "MANHATTAN", 7: "MANHATTAN",
+    9: "MANHATTAN", 10: "MANHATTAN", 13: "MANHATTAN", 14: "MANHATTAN",
+    17: "MANHATTAN", 18: "MANHATTAN", 19: "MANHATTAN", 20: "MANHATTAN",
+    22: "MANHATTAN", 23: "MANHATTAN", 24: "MANHATTAN", 25: "MANHATTAN",
+    26: "MANHATTAN", 28: "MANHATTAN", 30: "MANHATTAN", 32: "MANHATTAN",
+    33: "MANHATTAN", 34: "MANHATTAN",
+    # Bronx
+    40: "BRONX", 41: "BRONX", 42: "BRONX", 43: "BRONX", 44: "BRONX",
+    45: "BRONX", 46: "BRONX", 47: "BRONX", 48: "BRONX", 49: "BRONX",
+    50: "BRONX", 52: "BRONX",
+    # Brooklyn
+    60: "BROOKLYN", 61: "BROOKLYN", 62: "BROOKLYN", 63: "BROOKLYN",
+    66: "BROOKLYN", 67: "BROOKLYN", 68: "BROOKLYN", 69: "BROOKLYN",
+    70: "BROOKLYN", 71: "BROOKLYN", 72: "BROOKLYN", 73: "BROOKLYN",
+    75: "BROOKLYN", 76: "BROOKLYN", 77: "BROOKLYN", 78: "BROOKLYN",
+    79: "BROOKLYN", 81: "BROOKLYN", 83: "BROOKLYN", 84: "BROOKLYN",
+    88: "BROOKLYN", 90: "BROOKLYN", 94: "BROOKLYN",
+    # Queens
+    100: "QUEENS", 101: "QUEENS", 102: "QUEENS", 103: "QUEENS",
+    104: "QUEENS", 105: "QUEENS", 106: "QUEENS", 107: "QUEENS",
+    108: "QUEENS", 109: "QUEENS", 110: "QUEENS", 111: "QUEENS",
+    112: "QUEENS", 113: "QUEENS", 114: "QUEENS", 115: "QUEENS",
+    # Staten Island
+    120: "STATEN ISLAND", 121: "STATEN ISLAND", 122: "STATEN ISLAND",
+    123: "STATEN ISLAND",
+}
+
+
+def parse_precincts_gdf(precincts: pd.DataFrame) -> gpd.GeoDataFrame:
+    if precincts.empty or "the_geom" not in precincts.columns:
+        return gpd.GeoDataFrame(columns=["precinct", "geometry"])
+
+    def _parse(geom) -> object:
+        if isinstance(geom, str):
+            return shape(json.loads(geom))
+        if isinstance(geom, dict):
+            return shape(geom)
+        return None
+
+    return gpd.GeoDataFrame(
+        {"precinct": pd.to_numeric(precincts["precinct"], errors="coerce")},
+        geometry=precincts["the_geom"].apply(_parse),
+        crs="EPSG:4326",
+    )
+
+
+def build_precinct(precincts: pd.DataFrame, boroughs: pd.DataFrame) -> pd.DataFrame:
+    cols = ["precinct_id", "borough_id", "precinct_number", "precinct_name"]
+    if precincts.empty or "precinct" not in precincts.columns:
+        return pd.DataFrame(columns=cols)
+
+    numbers = pd.to_numeric(precincts["precinct"], errors="coerce").dropna().astype(int)
+    if len(numbers) == 0:
+        return pd.DataFrame(columns=cols)
+
+    borough_lookup = (
+        {} if boroughs.empty
+        else dict(zip(boroughs["borough_name"], boroughs["borough_id"]))
+    )
+
+    return pd.DataFrame({
+        "precinct_id": range(1, len(numbers) + 1),
+        "borough_id": [borough_lookup.get(PRECINCT_BOROUGHS.get(n)) for n in numbers],
+        "precinct_number": numbers.astype(str).values,
+        "precinct_name": [None] * len(numbers),
+    })
