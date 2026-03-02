@@ -53,11 +53,15 @@ def _assign_precinct_id(
         geometry=gpd.points_from_xy(lon[valid_mask], lat[valid_mask]),
         crs="EPSG:4326",
     )
-    joined = gpd.sjoin(points, precincts_gdf[["precinct", "geometry"]], how="left", predicate="within")
+    clean_gdf = precincts_gdf[precincts_gdf.geometry.notna()][["precinct", "geometry"]]
+    if clean_gdf.empty:
+        return empty
+
+    joined = gpd.sjoin(points, clean_gdf, how="left", predicate="intersects")
     joined = joined[~joined.index.duplicated(keep="first")]
 
     num_to_id = dict(zip(
-        pd.to_numeric(precinct_df["precinct_number"], errors="coerce"),
+        precinct_df["precinct_number"].astype(float),
         precinct_df["precinct_id"],
     ))
     return joined["precinct"].map(num_to_id).reindex(crashes.index)
@@ -323,7 +327,6 @@ def build_vehicle_factor(vehicles: pd.DataFrame, factors: pd.DataFrame) -> pd.Da
     result = combined[["vehicle_id", "factor_id"]].reset_index(drop=True)
     result.insert(0, "vehicle_factor_id", range(1, len(result) + 1))
     return result
-
 
 
 PRECINCT_BOROUGHS: dict[int, str] = {
