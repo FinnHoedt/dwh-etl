@@ -440,3 +440,62 @@ def test_parse_precincts_gdf_empty():
     result = parse_precincts_gdf(pd.DataFrame())
     assert isinstance(result, gpd.GeoDataFrame)
     assert result.empty
+
+
+def test_build_location_includes_precinct_id_column():
+    from transform import build_borough, build_location
+    crashes = pd.DataFrame([{"collision_id": "1", "borough": "MANHATTAN"}])
+    boroughs = build_borough(crashes)
+    result = build_location(crashes, boroughs)
+    assert "precinct_id" in result.columns
+
+
+def test_build_location_no_precincts_gives_null_precinct_id():
+    from transform import build_borough, build_location
+    crashes = pd.DataFrame([{
+        "collision_id": "1", "borough": "MANHATTAN",
+        "latitude": "40.7", "longitude": "-74.0",
+    }])
+    boroughs = build_borough(crashes)
+    result = build_location(crashes, boroughs)
+    assert pd.isna(result.iloc[0]["precinct_id"])
+
+
+def test_build_location_spatial_join_assigns_precinct_id():
+    from transform import build_borough, build_location, parse_precincts_gdf, build_precinct
+    crashes = pd.DataFrame([{
+        "collision_id": "1", "borough": "MANHATTAN",
+        "latitude": "0.5", "longitude": "0.5",
+    }])
+    boroughs = build_borough(crashes)
+    precincts_raw = pd.DataFrame([{
+        "precinct": 1,
+        "the_geom": json.dumps({
+            "type": "MultiPolygon",
+            "coordinates": [[[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]]
+        }),
+    }])
+    precincts_gdf = parse_precincts_gdf(precincts_raw)
+    precinct_df = build_precinct(precincts_raw, boroughs)
+    result = build_location(crashes, boroughs, precincts_gdf, precinct_df)
+    assert result.iloc[0]["precinct_id"] == precinct_df.iloc[0]["precinct_id"]
+
+
+def test_build_location_null_latlon_gets_null_precinct_id():
+    from transform import build_borough, build_location, parse_precincts_gdf, build_precinct
+    crashes = pd.DataFrame([{
+        "collision_id": "1", "borough": "MANHATTAN",
+        "latitude": None, "longitude": None,
+    }])
+    boroughs = build_borough(crashes)
+    precincts_raw = pd.DataFrame([{
+        "precinct": 1,
+        "the_geom": json.dumps({
+            "type": "MultiPolygon",
+            "coordinates": [[[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]]
+        }),
+    }])
+    precincts_gdf = parse_precincts_gdf(precincts_raw)
+    precinct_df = build_precinct(precincts_raw, boroughs)
+    result = build_location(crashes, boroughs, precincts_gdf, precinct_df)
+    assert pd.isna(result.iloc[0]["precinct_id"])

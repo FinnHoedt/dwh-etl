@@ -30,8 +30,46 @@ def build_borough(crashes: pd.DataFrame) -> pd.DataFrame:
     })
 
 
-def build_location(crashes: pd.DataFrame, boroughs: pd.DataFrame) -> pd.DataFrame:
-    cols = ["location_id", "borough_id", "street_name", "zip_code", "latitude", "longitude"]
+def _assign_precinct_id(
+    crashes: pd.DataFrame,
+    lat: pd.Series,
+    lon: pd.Series,
+    precincts_gdf: gpd.GeoDataFrame | None,
+    precinct_df: pd.DataFrame | None,
+) -> pd.Series:
+    empty = pd.Series(index=crashes.index, dtype=object)
+    if (
+        precincts_gdf is None or precincts_gdf.empty
+        or precinct_df is None or precinct_df.empty
+    ):
+        return empty
+
+    valid_mask = lat.notna() & lon.notna()
+    if not valid_mask.any():
+        return empty
+
+    points = gpd.GeoDataFrame(
+        index=crashes.index[valid_mask],
+        geometry=gpd.points_from_xy(lon[valid_mask], lat[valid_mask]),
+        crs="EPSG:4326",
+    )
+    joined = gpd.sjoin(points, precincts_gdf[["precinct", "geometry"]], how="left", predicate="within")
+    joined = joined[~joined.index.duplicated(keep="first")]
+
+    num_to_id = dict(zip(
+        pd.to_numeric(precinct_df["precinct_number"], errors="coerce"),
+        precinct_df["precinct_id"],
+    ))
+    return joined["precinct"].map(num_to_id).reindex(crashes.index)
+
+
+def build_location(
+    crashes: pd.DataFrame,
+    boroughs: pd.DataFrame,
+    precincts_gdf: gpd.GeoDataFrame | None = None,
+    precinct_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    cols = ["location_id", "borough_id", "precinct_id", "street_name", "zip_code", "latitude", "longitude"]
     if crashes.empty:
         return pd.DataFrame(columns=cols)
 
@@ -39,16 +77,17 @@ def build_location(crashes: pd.DataFrame, boroughs: pd.DataFrame) -> pd.DataFram
         {} if boroughs.empty
         else dict(zip(boroughs["borough_name"], boroughs["borough_id"]))
     )
-
-    street = _col(crashes, "on_street_name").fillna(_col(crashes, "cross_street_name"))
+    lat = pd.to_numeric(_col(crashes, "latitude"), errors="coerce")
+    lon = pd.to_numeric(_col(crashes, "longitude"), errors="coerce")
 
     return pd.DataFrame({
         "location_id": crashes["collision_id"],
         "borough_id": _col(crashes, "borough").map(borough_lookup),
-        "street_name": street,
+        "precinct_id": _assign_precinct_id(crashes, lat, lon, precincts_gdf, precinct_df),
+        "street_name": _col(crashes, "on_street_name").fillna(_col(crashes, "cross_street_name")),
         "zip_code": _col(crashes, "zip_code"),
-        "latitude": pd.to_numeric(_col(crashes, "latitude"), errors="coerce"),
-        "longitude": pd.to_numeric(_col(crashes, "longitude"), errors="coerce"),
+        "latitude": lat,
+        "longitude": lon,
     })
 
 
