@@ -78,6 +78,131 @@ def test_run_weather_only_writes_weather_output(monkeypatch):
     assert write_calls == [("weather_observation", 1)]
 
 
+def test_load_local_input_entity_canonicalizes_columns(tmp_path):
+    from main import _load_local_input_entity
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "crashes.csv").write_text(
+        "COLLISION_ID,CRASH DATE,CONTRIBUTING FACTOR VEHICLE 1\n"
+        "1,2024-01-01,Unsafe Speed\n"
+    )
+    cfg = {
+        "data_input": {
+            "directory": str(data_dir),
+            "files": {"crashes": "crashes.csv"},
+        }
+    }
+
+    result = _load_local_input_entity(cfg, "crashes")
+
+    assert "collision_id" in result.columns
+    assert "crash_date" in result.columns
+    assert "contributing_factor_1" in result.columns
+
+
+def test_load_local_input_entity_missing_required_columns_raises(tmp_path):
+    from main import _load_local_input_entity
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "vehicles.csv").write_text("COLLISION_ID\n1\n")
+    cfg = {
+        "data_input": {
+            "directory": str(data_dir),
+            "files": {"vehicles": "vehicles.csv"},
+        }
+    }
+
+    with pytest.raises(ValueError):
+        _load_local_input_entity(cfg, "vehicles")
+
+
+def test_filter_crashes_by_config_date_applies_bounds():
+    from main import filter_crashes_by_config_date
+
+    crashes = pd.DataFrame([
+        {"collision_id": "1", "crash_date": "2020-01-01"},
+        {"collision_id": "2", "crash_date": "2020-06-01"},
+        {"collision_id": "3", "crash_date": "2021-01-01"},
+    ])
+    cfg = {
+        "socrata": {
+            "crashes_date_filter": {
+                "start_date": "2020-03-01",
+                "end_date": "2020-12-31",
+            }
+        }
+    }
+
+    result = filter_crashes_by_config_date(crashes, cfg)
+
+    assert result["collision_id"].tolist() == ["2"]
+
+
+def test_main_uses_local_inputs_and_fetches_precincts(monkeypatch):
+    from argparse import Namespace
+    from main import main
+
+    cfg = {
+        "socrata": {"datasets": {"precincts": "precincts-id"}},
+        "output": {"directory": "output", "formats": ["csv"]},
+        "open_meteo": {"visibility_source": "none"},
+        "data_input": {
+            "directory": "data",
+            "files": {
+                "crashes": "crashes.csv",
+                "persons": "persons.csv",
+                "vehicles": "vehicles.csv",
+            },
+        },
+    }
+
+    loaded_entities = []
+    precinct_calls = []
+    writes = []
+
+    def fake_load_local(cfg_arg, entity_name):
+        loaded_entities.append(entity_name)
+        if entity_name == "crashes":
+            return pd.DataFrame([
+                {"collision_id": "1", "crash_date": "2024-01-01", "borough": "MANHATTAN"}
+            ])
+        if entity_name == "persons":
+            return pd.DataFrame([
+                {"unique_id": "P1", "collision_id": "1", "person_type": "Driver"}
+            ])
+        if entity_name == "vehicles":
+            return pd.DataFrame([
+                {"unique_id": "V1", "collision_id": "1", "vehicle_type": "Sedan"}
+            ])
+        return pd.DataFrame()
+
+    def fake_fetch_dataset(client, dataset_id, **kwargs):
+        precinct_calls.append(dataset_id)
+        return pd.DataFrame()
+
+    monkeypatch.setattr("main.parse_args", lambda: Namespace(weather_only=False))
+    monkeypatch.setattr("main.load_config", lambda path="config.yaml": cfg)
+    monkeypatch.setattr("main.configure_logging", lambda cfg_arg: None)
+    monkeypatch.setattr("main._load_local_input_entity", fake_load_local)
+    monkeypatch.setattr("main.filter_crashes_by_config_date", lambda crashes, cfg_arg: crashes)
+    monkeypatch.setattr("main.build_client", lambda cfg_arg: object())
+    monkeypatch.setattr("main.fetch_dataset", fake_fetch_dataset)
+    monkeypatch.setattr("main.build_weather_observation", lambda crashes, boroughs, cfg_arg: pd.DataFrame())
+    monkeypatch.setattr(
+        "main.write_output",
+        lambda df, cfg_arg, filename=None: writes.append(filename),
+    )
+
+    main()
+
+    assert loaded_entities == ["crashes", "persons", "vehicles"]
+    assert precinct_calls == ["precincts-id"]
+    assert "crash" in writes
+    assert "weather_observation" in writes
+
+
 def test_build_id_filter_formats_correctly():
     from main import build_id_filter
     result = build_id_filter(["123", "456", "789"])

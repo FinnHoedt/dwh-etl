@@ -1,4 +1,5 @@
 import json
+from datetime import date
 
 import geopandas as gpd
 import pandas as pd
@@ -161,76 +162,85 @@ def build_crash(crashes: pd.DataFrame) -> pd.DataFrame:
     })
 
 
-VEHICLE_TYPE_CATEGORIES: dict[str, str] = {
-    "Sedan": "Passenger Vehicle",
-    "Station Wagon/Sport Utility Vehicle": "Passenger Vehicle",
-    "2-dr sedan": "Passenger Vehicle",
-    "4-dr sedan": "Passenger Vehicle",
-    "Van": "Passenger Vehicle",
-    "Pick-up Truck": "Passenger Vehicle",
-    "Convertible": "Passenger Vehicle",
-    "Minivan": "Passenger Vehicle",
-    "Box Truck": "Commercial",
-    "Flat Bed": "Commercial",
-    "Tractor Truck Diesel": "Commercial",
-    "Tractor Truck Gasoline": "Commercial",
-    "Bus": "Commercial",
-    "Large Com Veh(6+ Tons)": "Commercial",
-    "Small Com Veh(4 Tires)": "Commercial",
-    "Tanker": "Commercial",
-    "Garbage or Refuse": "Commercial",
-    "Dump": "Commercial",
-    "Carry All": "Commercial",
-    "Bike": "Bicycle",
-    "E-Bike": "Bicycle",
-    "E-Scooter": "Bicycle",
-    "Motorcycle": "Motorcycle",
-    "Moped": "Motorcycle",
-    "Motorbike": "Motorcycle",
-    "Taxi": "Passenger Vehicle",
-    "Ambulance": "Commercial",
-    "Fire Truck": "Commercial",
-    "Tow Truck / Wrecker": "Commercial",
-    "Tow Truck": "Commercial",
-    "School Bus": "Commercial",
-    "Trailer": "Commercial",
-    "Semi Trail": "Commercial",
-    "Concrete Mixer": "Commercial",
-    "Chassis Cab": "Commercial",
-    "Box Van": "Commercial",
-    "Van/Truck": "Commercial",
-    "Beverage Truck": "Commercial",
-    "Lunch Wagon": "Commercial",
-    "Pedicab": "Bicycle",
-    "Scooter": "Motorcycle",
-    "Motorscooter": "Motorcycle",
-    "Unknown": "Unknown",
+VEHICLE_TYPE_BUCKETS: dict[str, dict[str, str]] = {
+    "PASSENGER_CAR": {"description": "Passenger Car", "category": "Passenger Vehicle"},
+    "SUV": {"description": "Sport Utility Vehicle", "category": "Passenger Vehicle"},
+    "PICKUP_TRUCK": {"description": "Pickup Truck", "category": "Passenger Vehicle"},
+    "VAN_MINIVAN": {"description": "Van or Minivan", "category": "Passenger Vehicle"},
+    "TAXI_FOR_HIRE": {"description": "Taxi or For-Hire Vehicle", "category": "Passenger Vehicle"},
+    "BUS": {"description": "Bus", "category": "Public Transit"},
+    "BOX_TRUCK": {"description": "Box Truck", "category": "Commercial"},
+    "COMMERCIAL_TRUCK": {"description": "Commercial Truck", "category": "Commercial"},
+    "TRAILER": {"description": "Trailer", "category": "Commercial"},
+    "CONSTRUCTION_EQUIPMENT": {"description": "Construction Equipment", "category": "Commercial"},
+    "MOTORCYCLE_MOPED": {"description": "Motorcycle or Moped", "category": "Two-Wheeler"},
+    "BICYCLE_MICROMOBILITY": {"description": "Bicycle or Micromobility", "category": "Two-Wheeler"},
+    "EMERGENCY_VEHICLE": {"description": "Emergency Vehicle", "category": "Emergency"},
+    "TOW_SERVICE": {"description": "Tow / Recovery Vehicle", "category": "Service"},
+    "UNKNOWN": {"description": "Unknown Vehicle Type", "category": "Unknown"},
 }
-VEHICLE_TYPE_ALIASES: dict[str, str] = {
-    "4 DR SEDAN": "SEDAN",
-    "2 DR SEDAN": "SEDAN",
-    "STATION WAGON SPORT UTILITY VEHICLE": "STATION WAGON/SPORT UTILITY VEHICLE",
-    "PICK UP TRUCK": "PICK-UP TRUCK",
-    "PICKUP": "PICK-UP TRUCK",
-    "PKUP": "PICK-UP TRUCK",
-    "PK": "PICK-UP TRUCK",
-    "BOX VAN": "BOX VAN",
-    "VAN TRUCK": "VAN/TRUCK",
-    "AMBU": "AMBULANCE",
-    "FDNY AMBUL": "AMBULANCE",
-    "FDNY ENGIN": "FIRE TRUCK",
-    "FDNY TRUCK": "FIRE TRUCK",
-    "SCHOOL BUS": "SCHOOL BUS",
-    "TOW TRUCK WRECKER": "TOW TRUCK / WRECKER",
-    "TOW TRUCK": "TOW TRUCK",
-    "SEMI TRAIL": "SEMI TRAIL",
-    "MOTORSCOOTER": "SCOOTER",
+
+VEHICLE_TYPE_EXACT_BUCKETS: dict[str, str] = {
+    "SEDAN": "PASSENGER_CAR",
+    "PASSENGER VEHICLE": "PASSENGER_CAR",
+    "4 DR SEDAN": "PASSENGER_CAR",
+    "2 DR SEDAN": "PASSENGER_CAR",
+    "CONVERTIBLE": "PASSENGER_CAR",
+    "SPORT UTILITY STATION WAGON": "SUV",
+    "STATION WAGON SPORT UTILITY VEHICLE": "SUV",
+    "SUV": "SUV",
+    "JEEP": "SUV",
+    "PICK UP TRUCK": "PICKUP_TRUCK",
+    "PICK UP": "PICKUP_TRUCK",
+    "PICKUP": "PICKUP_TRUCK",
+    "PKUP": "PICKUP_TRUCK",
+    "PK": "PICKUP_TRUCK",
+    "VAN": "VAN_MINIVAN",
+    "MINIVAN": "VAN_MINIVAN",
+    "TAXI": "TAXI_FOR_HIRE",
+    "LIVERY VEHICLE": "TAXI_FOR_HIRE",
+    "BUS": "BUS",
+    "SCHOOL BUS": "BUS",
+    "BOX TRUCK": "BOX_TRUCK",
+    "BOX VAN": "BOX_TRUCK",
+    "TRACTOR TRUCK DIESEL": "COMMERCIAL_TRUCK",
+    "TRACTOR TRUCK GASOLINE": "COMMERCIAL_TRUCK",
+    "LARGE COM VEH 6 TONS": "COMMERCIAL_TRUCK",
+    "SMALL COM VEH 4 TIRES": "COMMERCIAL_TRUCK",
+    "TANKER": "COMMERCIAL_TRUCK",
+    "GARBAGE OR REFUSE": "COMMERCIAL_TRUCK",
+    "DUMP": "COMMERCIAL_TRUCK",
+    "FLAT BED": "COMMERCIAL_TRUCK",
+    "VAN TRUCK": "COMMERCIAL_TRUCK",
+    "CARRY ALL": "COMMERCIAL_TRUCK",
+    "BEVERAGE TRUCK": "COMMERCIAL_TRUCK",
+    "TRAILER": "TRAILER",
+    "SEMI TRAIL": "TRAILER",
+    "CONCRETE MIXER": "CONSTRUCTION_EQUIPMENT",
+    "CHASSIS CAB": "CONSTRUCTION_EQUIPMENT",
+    "MOTORCYCLE": "MOTORCYCLE_MOPED",
+    "MOPED": "MOTORCYCLE_MOPED",
+    "MOTORBIKE": "MOTORCYCLE_MOPED",
+    "SCOOTER": "MOTORCYCLE_MOPED",
+    "MOTORSCOOTER": "MOTORCYCLE_MOPED",
+    "BIKE": "BICYCLE_MICROMOBILITY",
+    "E BIKE": "BICYCLE_MICROMOBILITY",
+    "E SCOOTER": "BICYCLE_MICROMOBILITY",
+    "PEDICAB": "BICYCLE_MICROMOBILITY",
+    "AMBULANCE": "EMERGENCY_VEHICLE",
+    "AMBU": "EMERGENCY_VEHICLE",
+    "FDNY AMBUL": "EMERGENCY_VEHICLE",
+    "FIRE TRUCK": "EMERGENCY_VEHICLE",
+    "FDNY ENGIN": "EMERGENCY_VEHICLE",
+    "FDNY TRUCK": "EMERGENCY_VEHICLE",
+    "POLICE VEHICLE": "EMERGENCY_VEHICLE",
+    "TOW TRUCK WRECKER": "TOW_SERVICE",
+    "TOW TRUCK": "TOW_SERVICE",
+    "TOW TRUCK WRECK": "TOW_SERVICE",
+    "UNKNOWN": "UNKNOWN",
     "UNK": "UNKNOWN",
-    "DL": "UNKNOWN",
     "USPCS": "UNKNOWN",
-}
-VEHICLE_TYPE_CATEGORY_BY_KEY: dict[str, str] = {
-    _vehicle_type_key(k): v for k, v in VEHICLE_TYPE_CATEGORIES.items()
+    "DL": "UNKNOWN",
 }
 
 
@@ -238,9 +248,45 @@ def _canonical_vehicle_type(value: object) -> str | None:
     normalized = _normalize_vehicle_type(value)
     if normalized is None:
         return None
-    key = _vehicle_type_key(normalized)
-    alias = VEHICLE_TYPE_ALIASES.get(key)
-    return alias if alias is not None else normalized
+    return _vehicle_type_key(normalized)
+
+
+def _vehicle_type_bucket(value: object) -> str:
+    key = _canonical_vehicle_type(value)
+    if key is None:
+        return "UNKNOWN"
+    if key in VEHICLE_TYPE_EXACT_BUCKETS:
+        return VEHICLE_TYPE_EXACT_BUCKETS[key]
+
+    if "BUS" in key:
+        return "BUS"
+    if "TAXI" in key or "LIVERY" in key or "CAB" in key:
+        return "TAXI_FOR_HIRE"
+    if "PICK" in key and "TRUCK" in key:
+        return "PICKUP_TRUCK"
+    if "SUV" in key or "SPORT UTILITY" in key or "STATION WAGON" in key:
+        return "SUV"
+    if "SEDAN" in key or "PASSENGER" in key:
+        return "PASSENGER_CAR"
+    if "VAN" in key or "MINIVAN" in key:
+        return "VAN_MINIVAN"
+    if "BOX TRUCK" in key:
+        return "BOX_TRUCK"
+    if any(token in key for token in ["TRUCK", "TRACTOR", "TANKER", "REFUSE", "DUMP", "FLAT BED"]):
+        return "COMMERCIAL_TRUCK"
+    if "TRAILER" in key or "SEMI" in key:
+        return "TRAILER"
+    if any(token in key for token in ["MIXER", "CHASSIS"]):
+        return "CONSTRUCTION_EQUIPMENT"
+    if any(token in key for token in ["MOTORCYCLE", "MOPED", "SCOOTER", "MOTORBIKE"]):
+        return "MOTORCYCLE_MOPED"
+    if any(token in key for token in ["BIKE", "BICYCLE", "PEDICAB"]):
+        return "BICYCLE_MICROMOBILITY"
+    if any(token in key for token in ["AMBUL", "FDNY", "FIRE", "POLICE"]):
+        return "EMERGENCY_VEHICLE"
+    if "TOW" in key or "WRECKER" in key:
+        return "TOW_SERVICE"
+    return "UNKNOWN"
 
 
 def build_vehicle_type(vehicles: pd.DataFrame) -> pd.DataFrame:
@@ -248,8 +294,8 @@ def build_vehicle_type(vehicles: pd.DataFrame) -> pd.DataFrame:
     if vehicles.empty or "vehicle_type" not in vehicles.columns:
         return pd.DataFrame(columns=cols)
 
-    normalized_types = vehicles["vehicle_type"].map(_canonical_vehicle_type).dropna()
-    codes = sorted(set(normalized_types.tolist()))
+    bucketed = vehicles["vehicle_type"].map(_vehicle_type_bucket)
+    codes = sorted(set(bucketed.dropna().tolist()))
     if "UNKNOWN" not in codes:
         codes.append("UNKNOWN")
     if len(codes) == 0:
@@ -258,8 +304,8 @@ def build_vehicle_type(vehicles: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame({
         "vehicle_type_id": range(1, len(codes) + 1),
         "type_code": codes,
-        "type_description": codes,
-        "type_category": [VEHICLE_TYPE_CATEGORY_BY_KEY.get(_vehicle_type_key(c), "Unknown") for c in codes],
+        "type_description": [VEHICLE_TYPE_BUCKETS.get(c, {}).get("description", c) for c in codes],
+        "type_category": [VEHICLE_TYPE_BUCKETS.get(c, {}).get("category", "Unknown") for c in codes],
     })
 
 
@@ -274,17 +320,21 @@ def build_vehicle(vehicles: pd.DataFrame, vehicle_types: pd.DataFrame) -> pd.Dat
     )
     unknown_type_id = type_lookup.get("UNKNOWN")
 
-    normalized_vehicle_type = _col(vehicles, "vehicle_type").map(_canonical_vehicle_type)
+    normalized_vehicle_type = _col(vehicles, "vehicle_type").map(_vehicle_type_bucket)
     vehicle_type_id = normalized_vehicle_type.map(type_lookup)
     if unknown_type_id is not None:
         vehicle_type_id = vehicle_type_id.fillna(unknown_type_id)
+
+    vehicle_year = pd.to_numeric(_col(vehicles, "vehicle_year"), errors="coerce")
+    current_year = date.today().year
+    vehicle_year = vehicle_year.where(vehicle_year <= current_year)
 
     return pd.DataFrame({
         "vehicle_id": vehicles["unique_id"],
         "collision_id": vehicles["collision_id"],
         "vehicle_type_id": vehicle_type_id,
         "state_registration": _col(vehicles, "state_registration"),
-        "vehicle_year": pd.to_numeric(_col(vehicles, "vehicle_year"), errors="coerce"),
+        "vehicle_year": vehicle_year,
     })
 
 
@@ -365,7 +415,6 @@ FACTOR_CATEGORIES: dict[str, str] = {
     "Steering Failure": "Vehicle Defect",
     "Accelerator Defective": "Vehicle Defect",
     "Headlights Defective": "Vehicle Defect",
-    "Windshield Inadequate": "Vehicle Defect",
     "Other Lighting Defects": "Vehicle Defect",
     "Vehicle Vandalism": "Vehicle Defect",
     "Oversized Vehicle": "Vehicle Defect",
@@ -376,10 +425,47 @@ FACTOR_CATEGORIES: dict[str, str] = {
     "Lane Marking Improper/Inadequate": "Environmental",
     "Traffic Control Device Improper/Non-Working": "Environmental",
     "Obstruction/Debris in Road": "Environmental",
+    "Driverless/Runaway Vehicle": "Driver Error",
+    "Reaction to Uninvolved Vehicle": "Driver Error",
+    "Failure to Keep Right": "Driver Error",
+    "Pedestrian/Bicyclist/Other Pedestrian Error/Confusion": "Pedestrian/Cyclist",
+    "Passenger Distraction": "Driver Error",
+    "Illnes": "Impairment",
+    "Physical Disability": "Impairment",
+    "Using On Board Navigation Device": "Driver Error",
+    "Other Electronic Device": "Driver Error",
+    "Driver Inexperience": "Driver Error",
+    "Texting": "Driver Error",
+    "Unsafe Backing": "Driver Error",
+    "Tinted Windows": "Vehicle Defect",
+    "Shoulders Defective/Improper": "Environmental",
+    "Animals Action": "Environmental",
+    "Windshield Inadequate": "Vehicle Defect",
 }
 NORMALIZED_FACTOR_CATEGORIES: dict[str, str] = {
     _casefold_key(k): v for k, v in FACTOR_CATEGORIES.items()
 }
+
+
+def _factor_category(value: object) -> str:
+    key = _casefold_key(value)
+    if key is None:
+        return "Unknown"
+    mapped = NORMALIZED_FACTOR_CATEGORIES.get(key)
+    if mapped is not None:
+        return mapped
+
+    if any(token in key for token in ["pedestrian", "bicyclist", "cyclist"]):
+        return "Pedestrian/Cyclist"
+    if any(token in key for token in ["alcohol", "drug", "medication", "illnes", "fell asleep", "fatigued", "drowsy"]):
+        return "Impairment"
+    if any(token in key for token in ["brake", "tire", "steering", "accelerator", "headlight", "windshield", "defect", "vandalism"]):
+        return "Vehicle Defect"
+    if any(token in key for token in ["glare", "pavement", "obstructed", "debris", "lane marking", "traffic control device improper", "weather", "snow", "ice"]):
+        return "Environmental"
+    if any(token in key for token in ["driver", "yield", "speed", "following", "lane", "backing", "turning", "disregarded", "distraction", "texting", "electronic"]):
+        return "Driver Error"
+    return "Unknown"
 
 
 def build_contributing_factor(vehicles: pd.DataFrame) -> pd.DataFrame:
@@ -408,7 +494,7 @@ def build_contributing_factor(vehicles: pd.DataFrame) -> pd.DataFrame:
         "factor_id": range(1, len(codes) + 1),
         "factor_code": codes,
         "factor_description": codes,
-        "factor_category": [NORMALIZED_FACTOR_CATEGORIES.get(_casefold_key(c), "Unknown") for c in codes],
+        "factor_category": [_factor_category(c) for c in codes],
     })
 
 

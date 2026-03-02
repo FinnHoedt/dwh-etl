@@ -176,7 +176,7 @@ def test_build_vehicle_type_normalizes_case_variants():
     ])
     result = build_vehicle_type(vehicles)
     assert len(result) == 2
-    assert "AMBULANCE" in result["type_code"].values
+    assert "EMERGENCY_VEHICLE" in result["type_code"].values
     assert "UNKNOWN" in result["type_code"].values
 
 
@@ -203,7 +203,7 @@ def test_build_vehicle_type_excludes_null_and_empty():
     ])
     result = build_vehicle_type(vehicles)
     assert len(result) == 2
-    assert set(result["type_code"]) == {"SEDAN", "UNKNOWN"}
+    assert set(result["type_code"]) == {"PASSENGER_CAR", "UNKNOWN"}
 
 
 def test_build_vehicle_type_aliases_pickup_variants_to_single_code():
@@ -214,8 +214,26 @@ def test_build_vehicle_type_aliases_pickup_variants_to_single_code():
         {"unique_id": "3", "vehicle_type": "PK"},
     ])
     result = build_vehicle_type(vehicles)
-    assert "PICK-UP TRUCK" in result["type_code"].values
-    assert len(result[result["type_code"] == "PICK-UP TRUCK"]) == 1
+    assert "PICKUP_TRUCK" in result["type_code"].values
+    assert len(result[result["type_code"] == "PICKUP_TRUCK"]) == 1
+
+
+def test_build_vehicle_type_compact_taxonomy_is_bounded():
+    from transform import build_vehicle_type
+    vehicles = pd.DataFrame([
+        {"unique_id": "1", "vehicle_type": "Sedan"},
+        {"unique_id": "2", "vehicle_type": "Station Wagon/Sport Utility Vehicle"},
+        {"unique_id": "3", "vehicle_type": "PKUP"},
+        {"unique_id": "4", "vehicle_type": "Taxi"},
+        {"unique_id": "5", "vehicle_type": "Tow Truck"},
+        {"unique_id": "6", "vehicle_type": "Ambulance"},
+        {"unique_id": "7", "vehicle_type": "Bike"},
+        {"unique_id": "8", "vehicle_type": "Motorcycle"},
+        {"unique_id": "9", "vehicle_type": "Completely New Weird Type"},
+    ])
+    result = build_vehicle_type(vehicles)
+    assert len(result) <= 20
+    assert "UNKNOWN" in result["type_code"].values
 
 
 def test_build_vehicle_type_empty():
@@ -246,7 +264,7 @@ def test_build_vehicle_maps_type_id():
     }])
     vt = build_vehicle_type(vehicles)
     result = build_vehicle(vehicles, vt)
-    sedan_id = vt.loc[vt["type_code"] == "SEDAN", "vehicle_type_id"].iloc[0]
+    sedan_id = vt.loc[vt["type_code"] == "PASSENGER_CAR", "vehicle_type_id"].iloc[0]
     assert result.iloc[0]["vehicle_type_id"] == sedan_id
 
 
@@ -255,6 +273,20 @@ def test_build_vehicle_coerces_year():
     vehicles = pd.DataFrame([{
         "unique_id": "V1", "collision_id": "1",
         "vehicle_type": "Sedan", "vehicle_year": "bad",
+        "state_registration": "NY",
+    }])
+    vt = build_vehicle_type(vehicles)
+    result = build_vehicle(vehicles, vt)
+    assert pd.isna(result.iloc[0]["vehicle_year"])
+
+
+def test_build_vehicle_future_year_is_null():
+    from datetime import date
+    from transform import build_vehicle, build_vehicle_type
+    next_year = date.today().year + 1
+    vehicles = pd.DataFrame([{
+        "unique_id": "V1", "collision_id": "1",
+        "vehicle_type": "Sedan", "vehicle_year": str(next_year),
         "state_registration": "NY",
     }])
     vt = build_vehicle_type(vehicles)
@@ -406,6 +438,17 @@ def test_build_contributing_factor_maps_category():
     }])
     result = build_contributing_factor(vehicles)
     assert result.iloc[0]["factor_category"] == "Environmental"
+
+
+def test_build_contributing_factor_maps_pedestrian_category():
+    from transform import build_contributing_factor
+    vehicles = pd.DataFrame([{
+        "unique_id": "V1",
+        "contributing_factor_1": "Pedestrian/Bicyclist/Other Pedestrian Error/Confusion",
+        "contributing_factor_2": None,
+    }])
+    result = build_contributing_factor(vehicles)
+    assert result.iloc[0]["factor_category"] == "Pedestrian/Cyclist"
 
 
 def test_build_contributing_factor_unknown_maps_to_unknown():

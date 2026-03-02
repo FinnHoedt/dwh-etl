@@ -53,3 +53,13 @@ output:
   formats:
     - csv
     - parquet
+
+data_input:
+  directory: data
+  files:
+    crashes: crashes.csv
+    persons: persons.csv
+    vehicles: vehicles.csv
+  profiling_output:
+    markdown: docs/profiling/data_profile_summary.md
+    json: docs/profiling/data_profile_summary.json

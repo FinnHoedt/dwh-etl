@@ -2,6 +2,7 @@ import argparse
 import io
 import logging
 import os
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -27,6 +28,19 @@ from transform import (
 
 logger = logging.getLogger(__name__)
 METEOSTAT_DISABLED = False
+
+LOCAL_REQUIRED_COLUMNS: dict[str, set[str]] = {
+    "crashes": {"collision_id", "crash_date"},
+    "persons": {"collision_id", "unique_id"},
+    "vehicles": {"collision_id", "unique_id"},
+}
+
+LOCAL_COLUMN_ALIASES: dict[str, dict[str, str]] = {
+    "crashes": {
+        "contributing_factor_vehicle_1": "contributing_factor_1",
+        "contributing_factor_vehicle_2": "contributing_factor_2",
+    },
+}
 
 DEFAULT_BOROUGH_COORDINATES: dict[str, dict[str, float]] = {
     "MANHATTAN": {"latitude": 40.7831, "longitude": -73.9712},
@@ -651,6 +665,88 @@ def build_client(cfg: dict) -> Socrata:
     )
 
 
+def _canonicalize_column_name(name: object) -> str:
+    text = str(name).strip().lower()
+    text = re.sub(r"[^a-z0-9]+", "_", text)
+    text = re.sub(r"_+", "_", text).strip("_")
+    return text
+
+
+def _canonicalize_columns(df: pd.DataFrame, entity_name: str) -> pd.DataFrame:
+    canonical = {_name: _canonicalize_column_name(_name) for _name in df.columns}
+    result = df.rename(columns=canonical)
+    aliases = LOCAL_COLUMN_ALIASES.get(entity_name, {})
+    if aliases:
+        result = result.rename(columns=aliases)
+    return result
+
+
+def _load_local_input_entity(cfg: dict, entity_name: str) -> pd.DataFrame:
+    input_cfg = cfg.get("data_input", {})
+    directory = Path(input_cfg.get("directory", "data"))
+    files = input_cfg.get("files", {})
+    filename = files.get(entity_name)
+    if not filename:
+        raise ValueError(f"Missing data_input.files.{entity_name} in config")
+
+    path = directory / filename
+    if not path.exists():
+        raise FileNotFoundError(f"Required local input file not found: {path}")
+
+    if path.suffix.lower() == ".csv":
+        df = pd.read_csv(path, low_memory=False)
+    elif path.suffix.lower() == ".parquet":
+        df = pd.read_parquet(path)
+    else:
+        raise ValueError(f"Unsupported input file format for {path}")
+
+    df = _canonicalize_columns(df, entity_name)
+    required = LOCAL_REQUIRED_COLUMNS.get(entity_name, set())
+    missing = sorted(required - set(df.columns))
+    if missing:
+        raise ValueError(
+            f"Input file {path} is missing required columns for {entity_name}: {', '.join(missing)}"
+        )
+    logger.info("Loaded local %s: %d rows from %s", entity_name, len(df), path)
+    return df
+
+
+def filter_crashes_by_config_date(crashes: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    if crashes.empty or "crash_date" not in crashes.columns:
+        return crashes
+
+    socrata_cfg = cfg.get("socrata", {})
+    date_filter = socrata_cfg.get("crashes_date_filter", {})
+    if not isinstance(date_filter, dict):
+        return crashes
+
+    start_date = date_filter.get("start_date")
+    end_date = date_filter.get("end_date")
+    if not start_date and not end_date:
+        return crashes
+
+    parsed = pd.to_datetime(crashes["crash_date"], errors="coerce")
+    mask = parsed.notna()
+    if start_date:
+        start_ts = pd.to_datetime(start_date, errors="coerce")
+        if pd.notna(start_ts):
+            mask &= parsed >= start_ts
+    if end_date:
+        end_ts = pd.to_datetime(end_date, errors="coerce")
+        if pd.notna(end_ts):
+            mask &= parsed < (end_ts + pd.Timedelta(days=1))
+
+    filtered = crashes[mask].reset_index(drop=True)
+    logger.info(
+        "Applied local crash date filter start=%s end=%s rows=%d->%d",
+        start_date,
+        end_date,
+        len(crashes),
+        len(filtered),
+    )
+    return filtered
+
+
 def _read_output_entity(cfg: dict, entity_name: str) -> pd.DataFrame:
     out_cfg = cfg["output"]
     directory = Path(out_cfg["directory"])
@@ -702,49 +798,26 @@ def main() -> None:
         run_weather_only(cfg)
         return
 
-    client = build_client(cfg)
-
     datasets = cfg["socrata"]["datasets"]
-    limit = cfg["socrata"]["limit"]
-    crashes_page_limit = cfg["socrata"].get("crashes_page_limit", limit)
-    crashes_max_pages = cfg["socrata"].get("crashes_max_pages")
-    related_batch_size = cfg["socrata"].get("related_batch_size", 300)
-    related_limit = cfg["socrata"].get("related_limit", limit)
-    crashes_where = build_crashes_date_where(cfg)
-    if crashes_where:
-        logger.info("Applying crash date filter: %s", crashes_where)
+    crashes = _load_local_input_entity(cfg, "crashes")
+    crashes = filter_crashes_by_config_date(crashes, cfg)
+    persons = _load_local_input_entity(cfg, "persons")
+    vehicles = _load_local_input_entity(cfg, "vehicles")
 
-    crashes = fetch_crashes_paginated(
-        client,
-        datasets["crashes"],
-        page_limit=crashes_page_limit,
-        where=crashes_where,
-        max_pages=crashes_max_pages,
-    )
     if crashes.empty:
-        logger.warning("No crashes fetched — exiting.")
+        logger.warning("No crashes available after local load/date filter — exiting.")
         return
 
-    if "collision_id" not in crashes.columns:
-        logger.error("Crashes dataset is missing 'collision_id' column — exiting.")
-        return
+    crashes = crashes.copy()
+    crashes["collision_id"] = crashes["collision_id"].astype(str)
+    if not vehicles.empty and "collision_id" in vehicles.columns:
+        vehicles = vehicles.copy()
+        vehicles["collision_id"] = vehicles["collision_id"].astype(str)
+    if not persons.empty and "collision_id" in persons.columns:
+        persons = persons.copy()
+        persons["collision_id"] = persons["collision_id"].astype(str)
 
-    collision_ids = crashes["collision_id"].astype(str).tolist()
-    vehicles = fetch_related_in_batches(
-        client,
-        datasets["vehicles"],
-        collision_ids,
-        batch_size=related_batch_size,
-        limit=related_limit,
-    )
-    persons = fetch_related_in_batches(
-        client,
-        datasets["persons"],
-        collision_ids,
-        batch_size=related_batch_size,
-        limit=related_limit,
-    )
-
+    client = build_client(cfg)
     precincts_raw = fetch_dataset(client, datasets["precincts"])
     if precincts_raw.empty:
         logger.warning("No precincts fetched — precinct_id will be NULL in locations.")
