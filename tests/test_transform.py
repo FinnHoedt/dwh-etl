@@ -507,3 +507,55 @@ def test_build_borough_always_includes_all_five_nyc_boroughs():
     result = build_borough(pd.DataFrame())
     assert set(result["borough_name"]) == {"MANHATTAN", "BRONX", "BROOKLYN", "QUEENS", "STATEN ISLAND"}
     assert len(result) == 5
+
+
+def test_filter_locatable_crashes_infers_borough_from_latlon():
+    from transform import filter_locatable_crashes, parse_precincts_gdf
+    crashes = pd.DataFrame([{
+        "collision_id": "1",
+        "borough": None,
+        "latitude": "0.5",
+        "longitude": "0.5",
+    }])
+    precincts_raw = pd.DataFrame([{
+        "precinct": 1,
+        "the_geom": json.dumps({
+            "type": "MultiPolygon",
+            "coordinates": [[[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]]
+        }),
+    }])
+    precincts_gdf = parse_precincts_gdf(precincts_raw)
+    result = filter_locatable_crashes(crashes, precincts_gdf)
+    assert len(result) == 1
+    assert result.iloc[0]["borough"] == "MANHATTAN"
+
+
+def test_filter_locatable_crashes_drops_null_borough_null_latlon():
+    from transform import filter_locatable_crashes
+    crashes = pd.DataFrame([{
+        "collision_id": "1",
+        "borough": None,
+        "latitude": None,
+        "longitude": None,
+    }])
+    result = filter_locatable_crashes(crashes, None)
+    assert result.empty
+
+
+def test_filter_locatable_crashes_keeps_known_borough_no_latlon():
+    from transform import filter_locatable_crashes
+    crashes = pd.DataFrame([{
+        "collision_id": "1",
+        "borough": "BROOKLYN",
+        "latitude": None,
+        "longitude": None,
+    }])
+    result = filter_locatable_crashes(crashes, None)
+    assert len(result) == 1
+    assert result.iloc[0]["borough"] == "BROOKLYN"
+
+
+def test_filter_locatable_crashes_empty():
+    from transform import filter_locatable_crashes
+    result = filter_locatable_crashes(pd.DataFrame(), None)
+    assert result.empty

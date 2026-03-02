@@ -399,3 +399,38 @@ def build_precinct(precincts: pd.DataFrame, boroughs: pd.DataFrame) -> pd.DataFr
         "precinct_number": numbers.astype(str).values,
         "precinct_name": [None] * len(numbers),
     })
+
+
+def filter_locatable_crashes(
+    crashes: pd.DataFrame,
+    precincts_gdf: gpd.GeoDataFrame | None = None,
+) -> pd.DataFrame:
+    if crashes.empty:
+        return crashes
+
+    borough_col = _col(crashes, "borough")
+    borough_null = borough_col.isna() | borough_col.str.strip().eq("")
+    lat = pd.to_numeric(_col(crashes, "latitude"), errors="coerce")
+    lon = pd.to_numeric(_col(crashes, "longitude"), errors="coerce")
+    has_latlon = lat.notna() & lon.notna()
+
+    infer_mask = borough_null & has_latlon
+    if infer_mask.any() and precincts_gdf is not None and not precincts_gdf.empty:
+        clean_gdf = precincts_gdf[precincts_gdf.geometry.notna()][["precinct", "geometry"]]
+        if not clean_gdf.empty:
+            points = gpd.GeoDataFrame(
+                index=crashes.index[infer_mask],
+                geometry=gpd.points_from_xy(lon[infer_mask], lat[infer_mask]),
+                crs="EPSG:4326",
+            )
+            joined = gpd.sjoin(points, clean_gdf, how="left", predicate="intersects")
+            joined = joined[~joined.index.duplicated(keep="first")]
+            inferred = joined["precinct"].apply(
+                lambda n: PRECINCT_BOROUGHS.get(int(n)) if pd.notna(n) else None
+            )
+            crashes = crashes.copy()
+            crashes.loc[inferred.index, "borough"] = inferred.values
+
+    borough_col = _col(crashes, "borough")
+    locatable = borough_col.notna() & (borough_col.str.strip() != "")
+    return crashes[locatable].reset_index(drop=True)
