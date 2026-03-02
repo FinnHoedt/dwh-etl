@@ -14,9 +14,11 @@ from transform import (
     build_location,
     build_person,
     build_person_type,
+    build_precinct,
     build_vehicle,
     build_vehicle_factor,
     build_vehicle_type,
+    parse_precincts_gdf,
 )
 
 logger = logging.getLogger(__name__)
@@ -96,13 +98,19 @@ def main() -> None:
     vehicles = fetch_dataset(client, datasets["vehicles"], where=id_filter)
     persons = fetch_dataset(client, datasets["persons"], where=id_filter)
 
+    precincts_raw = fetch_dataset(client, datasets["precincts"])
+    if precincts_raw.empty:
+        logger.warning("No precincts fetched — precinct_id will be NULL in locations.")
+    precincts_gdf = parse_precincts_gdf(precincts_raw)
+
     if vehicles.empty:
         logger.warning("No vehicles found for fetched crashes.")
     if persons.empty:
         logger.warning("No persons found for fetched crashes.")
 
     boroughs = build_borough(crashes)
-    locations = build_location(crashes, boroughs)
+    precinct_df = build_precinct(precincts_raw, boroughs)
+    locations = build_location(crashes, boroughs, precincts_gdf, precinct_df)
     crash_df = build_crash(crashes)
     vehicle_types = build_vehicle_type(vehicles)
     vehicle_df = build_vehicle(vehicles, vehicle_types)
@@ -113,6 +121,7 @@ def main() -> None:
 
     entities: dict[str, pd.DataFrame] = {
         "borough": boroughs,
+        "precinct": precinct_df,
         "location": locations,
         "crash": crash_df,
         "vehicle_type": vehicle_types,
