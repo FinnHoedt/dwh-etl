@@ -10,6 +10,7 @@ dependencies = [
     "sodapy>=2.2.0",
     "pyyaml>=6.0",
     "pyarrow>=15.0",
+    "geopandas>=1.0",
 ]
 
 [dependency-groups]

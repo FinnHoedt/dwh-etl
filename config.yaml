@@ -4,6 +4,7 @@ socrata:
     crashes: h9gi-nx95
     persons: f55k-p6yu
     vehicles: bm4k-52h4
+    precincts: y76i-bdw7
   limit: 100
 
 output:
