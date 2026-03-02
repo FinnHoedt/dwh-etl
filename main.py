@@ -18,6 +18,7 @@ from transform import (
     build_vehicle,
     build_vehicle_factor,
     build_vehicle_type,
+    filter_locatable_crashes,
     parse_precincts_gdf,
 )
 
@@ -102,6 +103,16 @@ def main() -> None:
     if precincts_raw.empty:
         logger.warning("No precincts fetched — precinct_id will be NULL in locations.")
     precincts_gdf = parse_precincts_gdf(precincts_raw)
+
+    crashes = filter_locatable_crashes(crashes, precincts_gdf)
+    if crashes.empty:
+        logger.warning("No locatable crashes — nothing to output.")
+        return
+    valid_ids = set(crashes["collision_id"])
+    if not vehicles.empty:
+        vehicles = vehicles[vehicles["collision_id"].isin(valid_ids)]
+    if not persons.empty:
+        persons = persons[persons["collision_id"].isin(valid_ids)]
 
     if vehicles.empty:
         logger.warning("No vehicles found for fetched crashes.")
