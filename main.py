@@ -35,6 +35,12 @@ def build_id_filter(ids: list[str]) -> str:
     return f"collision_id in({quoted})"
 
 
+def chunk_ids(ids: list[str], batch_size: int) -> list[list[str]]:
+    if batch_size <= 0:
+        raise ValueError("batch_size must be greater than 0")
+    return [ids[i : i + batch_size] for i in range(0, len(ids), batch_size)]
+
+
 def fetch_dataset(client: Socrata, dataset_id: str, **kwargs) -> pd.DataFrame:
     try:
         records = client.get(dataset_id, **kwargs)
@@ -47,6 +53,28 @@ def fetch_dataset(client: Socrata, dataset_id: str, **kwargs) -> pd.DataFrame:
         return pd.DataFrame()
 
     return pd.DataFrame.from_records(records)
+
+
+def fetch_related_in_batches(
+    client: Socrata,
+    dataset_id: str,
+    collision_ids: list[str],
+    batch_size: int,
+    limit: int,
+) -> pd.DataFrame:
+    if not collision_ids:
+        return pd.DataFrame()
+
+    frames: list[pd.DataFrame] = []
+    for batch in chunk_ids(collision_ids, batch_size):
+        id_filter = build_id_filter(batch)
+        batch_df = fetch_dataset(client, dataset_id, where=id_filter, limit=limit)
+        if not batch_df.empty:
+            frames.append(batch_df)
+
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True).drop_duplicates()
 
 
 def write_output(df: pd.DataFrame, cfg: dict, filename: str | None = None) -> None:
@@ -84,6 +112,7 @@ def main() -> None:
 
     datasets = cfg["socrata"]["datasets"]
     limit = cfg["socrata"]["limit"]
+    related_batch_size = cfg["socrata"].get("related_batch_size", 300)
 
     crashes = fetch_dataset(client, datasets["crashes"], limit=limit)
     if crashes.empty:
@@ -94,10 +123,21 @@ def main() -> None:
         logger.error("Crashes dataset is missing 'collision_id' column — exiting.")
         return
 
-    id_filter = build_id_filter(crashes["collision_id"].tolist())
-
-    vehicles = fetch_dataset(client, datasets["vehicles"], where=id_filter)
-    persons = fetch_dataset(client, datasets["persons"], where=id_filter)
+    collision_ids = crashes["collision_id"].astype(str).tolist()
+    vehicles = fetch_related_in_batches(
+        client,
+        datasets["vehicles"],
+        collision_ids,
+        batch_size=related_batch_size,
+        limit=limit,
+    )
+    persons = fetch_related_in_batches(
+        client,
+        datasets["persons"],
+        collision_ids,
+        batch_size=related_batch_size,
+        limit=limit,
+    )
 
     precincts_raw = fetch_dataset(client, datasets["precincts"])
     if precincts_raw.empty:

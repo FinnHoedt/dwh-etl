@@ -42,6 +42,18 @@ def test_build_id_filter_empty_list():
     assert result == "collision_id in()"
 
 
+def test_chunk_ids_splits_into_expected_batches():
+    from main import chunk_ids
+    result = chunk_ids(["1", "2", "3", "4", "5"], 2)
+    assert result == [["1", "2"], ["3", "4"], ["5"]]
+
+
+def test_chunk_ids_invalid_batch_size_raises():
+    from main import chunk_ids
+    with pytest.raises(ValueError):
+        chunk_ids(["1", "2"], 0)
+
+
 import pandas as pd
 from unittest.mock import MagicMock
 
@@ -78,6 +90,41 @@ def test_fetch_dataset_api_error_returns_empty_df():
 
     assert isinstance(result, pd.DataFrame)
     assert result.empty
+
+
+def test_fetch_related_in_batches_combines_all_chunks():
+    from main import fetch_related_in_batches
+    client = MagicMock()
+    client.get.side_effect = [
+        [{"collision_id": "1", "unique_id": "A"}],
+        [{"collision_id": "3", "unique_id": "B"}],
+    ]
+
+    result = fetch_related_in_batches(
+        client,
+        "dataset-id",
+        ["1", "2", "3", "4"],
+        batch_size=2,
+        limit=100,
+    )
+
+    assert len(result) == 2
+    assert set(result["unique_id"]) == {"A", "B"}
+    assert client.get.call_count == 2
+
+
+def test_fetch_related_in_batches_empty_ids_returns_empty_df():
+    from main import fetch_related_in_batches
+    client = MagicMock()
+    result = fetch_related_in_batches(
+        client,
+        "dataset-id",
+        [],
+        batch_size=2,
+        limit=100,
+    )
+    assert result.empty
+    assert client.get.call_count == 0
 
 
 
