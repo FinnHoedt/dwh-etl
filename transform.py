@@ -429,7 +429,7 @@ def filter_locatable_crashes(
                 lambda n: PRECINCT_BOROUGHS.get(int(n)) if pd.notna(n) else None
             )
             crashes = crashes.copy()
-            crashes.loc[inferred.index, "borough"] = inferred.values
+            crashes.loc[inferred.index, "borough"] = inferred
 
     borough_col = _col(crashes, "borough")
     locatable = borough_col.notna() & (borough_col.str.strip() != "")
