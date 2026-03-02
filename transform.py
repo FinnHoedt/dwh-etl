@@ -1,4 +1,8 @@
+import json
+
+import geopandas as gpd
 import pandas as pd
+from shapely.geometry import shape
 
 
 def _col(df: pd.DataFrame, name: str) -> pd.Series:
@@ -281,10 +285,6 @@ def build_vehicle_factor(vehicles: pd.DataFrame, factors: pd.DataFrame) -> pd.Da
     result.insert(0, "vehicle_factor_id", range(1, len(result) + 1))
     return result
 
-
-import json
-import geopandas as gpd
-from shapely.geometry import shape
 
 
 PRECINCT_BOROUGHS: dict[int, str] = {
