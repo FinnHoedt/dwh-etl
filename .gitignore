@@ -1,10 +1,12 @@
 # Output
 output/
+logs/
 
 # Environment
 .env
 .venv/
 venv/
+.cache
 
 # Python
 __pycache__/

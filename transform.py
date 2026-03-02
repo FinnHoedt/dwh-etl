@@ -9,6 +9,45 @@ def _col(df: pd.DataFrame, name: str) -> pd.Series:
     return df[name] if name in df.columns else pd.Series(index=df.index, dtype=object)
 
 
+def _location_ids(crashes: pd.DataFrame) -> pd.Series:
+    if crashes.empty:
+        return pd.Series(dtype="Int64")
+    # Surrogate key per crash row, stable for the current transformed dataset.
+    return pd.Series(range(1, len(crashes) + 1), index=crashes.index, dtype="Int64")
+
+
+def _normalize_text(value: object) -> str | None:
+    if value is None or pd.isna(value):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return " ".join(text.split())
+
+
+def _casefold_key(value: object) -> str | None:
+    normalized = _normalize_text(value)
+    return normalized.casefold() if normalized is not None else None
+
+
+def _normalize_borough(value: object) -> str | None:
+    normalized = _normalize_text(value)
+    return normalized.upper() if normalized is not None else None
+
+
+def _normalize_vehicle_type(value: object) -> str | None:
+    normalized = _normalize_text(value)
+    return normalized.upper() if normalized is not None else None
+
+
+def _vehicle_type_key(value: object) -> str | None:
+    normalized = _normalize_vehicle_type(value)
+    if normalized is None:
+        return None
+    cleaned = "".join(ch if ch.isalnum() else " " for ch in normalized)
+    return " ".join(cleaned.split())
+
+
 NYC_BOROUGHS: list[str] = ["MANHATTAN", "BRONX", "BROOKLYN", "QUEENS", "STATEN ISLAND"]
 
 
@@ -17,8 +56,8 @@ def build_borough(crashes: pd.DataFrame) -> pd.DataFrame:
     if not crashes.empty and "borough" in crashes.columns:
         crash_names = (
             crashes["borough"]
+            .map(_normalize_borough)
             .dropna()
-            .pipe(lambda s: s[s.str.strip() != ""])
             .unique()
             .tolist()
         )
@@ -83,12 +122,14 @@ def build_location(
         {} if boroughs.empty
         else dict(zip(boroughs["borough_name"], boroughs["borough_id"]))
     )
+    borough_normalized = _col(crashes, "borough").map(_normalize_borough)
     lat = pd.to_numeric(_col(crashes, "latitude"), errors="coerce")
     lon = pd.to_numeric(_col(crashes, "longitude"), errors="coerce")
+    location_ids = _location_ids(crashes)
 
     return pd.DataFrame({
-        "location_id": crashes["collision_id"],
-        "borough_id": _col(crashes, "borough").map(borough_lookup),
+        "location_id": location_ids,
+        "borough_id": borough_normalized.map(borough_lookup),
         "precinct_id": _assign_precinct_id(crashes, lat, lon, precincts_gdf, precinct_df),
         "street_name": _col(crashes, "on_street_name").fillna(_col(crashes, "cross_street_name")),
         "zip_code": _col(crashes, "zip_code"),
@@ -103,11 +144,14 @@ def build_crash(crashes: pd.DataFrame) -> pd.DataFrame:
     if crashes.empty:
         return pd.DataFrame(columns=cols)
 
+    location_ids = _location_ids(crashes)
+    crash_dates = pd.to_datetime(_col(crashes, "crash_date"), errors="coerce").dt.date
+
     return pd.DataFrame({
         "collision_id": crashes["collision_id"],
-        "crash_date": _col(crashes, "crash_date"),
+        "crash_date": crash_dates,
         "crash_time": _col(crashes, "crash_time"),
-        "location_id": crashes["collision_id"],
+        "location_id": location_ids,
         "number_of_persons_injured": pd.to_numeric(
             _col(crashes, "number_of_persons_injured"), errors="coerce"
         ),
@@ -143,7 +187,60 @@ VEHICLE_TYPE_CATEGORIES: dict[str, str] = {
     "Motorcycle": "Motorcycle",
     "Moped": "Motorcycle",
     "Motorbike": "Motorcycle",
+    "Taxi": "Passenger Vehicle",
+    "Ambulance": "Commercial",
+    "Fire Truck": "Commercial",
+    "Tow Truck / Wrecker": "Commercial",
+    "Tow Truck": "Commercial",
+    "School Bus": "Commercial",
+    "Trailer": "Commercial",
+    "Semi Trail": "Commercial",
+    "Concrete Mixer": "Commercial",
+    "Chassis Cab": "Commercial",
+    "Box Van": "Commercial",
+    "Van/Truck": "Commercial",
+    "Beverage Truck": "Commercial",
+    "Lunch Wagon": "Commercial",
+    "Pedicab": "Bicycle",
+    "Scooter": "Motorcycle",
+    "Motorscooter": "Motorcycle",
+    "Unknown": "Unknown",
 }
+VEHICLE_TYPE_ALIASES: dict[str, str] = {
+    "4 DR SEDAN": "SEDAN",
+    "2 DR SEDAN": "SEDAN",
+    "STATION WAGON SPORT UTILITY VEHICLE": "STATION WAGON/SPORT UTILITY VEHICLE",
+    "PICK UP TRUCK": "PICK-UP TRUCK",
+    "PICKUP": "PICK-UP TRUCK",
+    "PKUP": "PICK-UP TRUCK",
+    "PK": "PICK-UP TRUCK",
+    "BOX VAN": "BOX VAN",
+    "VAN TRUCK": "VAN/TRUCK",
+    "AMBU": "AMBULANCE",
+    "FDNY AMBUL": "AMBULANCE",
+    "FDNY ENGIN": "FIRE TRUCK",
+    "FDNY TRUCK": "FIRE TRUCK",
+    "SCHOOL BUS": "SCHOOL BUS",
+    "TOW TRUCK WRECKER": "TOW TRUCK / WRECKER",
+    "TOW TRUCK": "TOW TRUCK",
+    "SEMI TRAIL": "SEMI TRAIL",
+    "MOTORSCOOTER": "SCOOTER",
+    "UNK": "UNKNOWN",
+    "DL": "UNKNOWN",
+    "USPCS": "UNKNOWN",
+}
+VEHICLE_TYPE_CATEGORY_BY_KEY: dict[str, str] = {
+    _vehicle_type_key(k): v for k, v in VEHICLE_TYPE_CATEGORIES.items()
+}
+
+
+def _canonical_vehicle_type(value: object) -> str | None:
+    normalized = _normalize_vehicle_type(value)
+    if normalized is None:
+        return None
+    key = _vehicle_type_key(normalized)
+    alias = VEHICLE_TYPE_ALIASES.get(key)
+    return alias if alias is not None else normalized
 
 
 def build_vehicle_type(vehicles: pd.DataFrame) -> pd.DataFrame:
@@ -151,12 +248,10 @@ def build_vehicle_type(vehicles: pd.DataFrame) -> pd.DataFrame:
     if vehicles.empty or "vehicle_type" not in vehicles.columns:
         return pd.DataFrame(columns=cols)
 
-    codes = (
-        vehicles["vehicle_type"]
-        .dropna()
-        .pipe(lambda s: s[s.str.strip() != ""])
-        .unique()
-    )
+    normalized_types = vehicles["vehicle_type"].map(_canonical_vehicle_type).dropna()
+    codes = sorted(set(normalized_types.tolist()))
+    if "UNKNOWN" not in codes:
+        codes.append("UNKNOWN")
     if len(codes) == 0:
         return pd.DataFrame(columns=cols)
 
@@ -164,7 +259,7 @@ def build_vehicle_type(vehicles: pd.DataFrame) -> pd.DataFrame:
         "vehicle_type_id": range(1, len(codes) + 1),
         "type_code": codes,
         "type_description": codes,
-        "type_category": [VEHICLE_TYPE_CATEGORIES.get(c, "Unknown") for c in codes],
+        "type_category": [VEHICLE_TYPE_CATEGORY_BY_KEY.get(_vehicle_type_key(c), "Unknown") for c in codes],
     })
 
 
@@ -177,11 +272,17 @@ def build_vehicle(vehicles: pd.DataFrame, vehicle_types: pd.DataFrame) -> pd.Dat
         {} if vehicle_types.empty
         else dict(zip(vehicle_types["type_code"], vehicle_types["vehicle_type_id"]))
     )
+    unknown_type_id = type_lookup.get("UNKNOWN")
+
+    normalized_vehicle_type = _col(vehicles, "vehicle_type").map(_canonical_vehicle_type)
+    vehicle_type_id = normalized_vehicle_type.map(type_lookup)
+    if unknown_type_id is not None:
+        vehicle_type_id = vehicle_type_id.fillna(unknown_type_id)
 
     return pd.DataFrame({
         "vehicle_id": vehicles["unique_id"],
         "collision_id": vehicles["collision_id"],
-        "vehicle_type_id": _col(vehicles, "vehicle_type").map(type_lookup),
+        "vehicle_type_id": vehicle_type_id,
         "state_registration": _col(vehicles, "state_registration"),
         "vehicle_year": pd.to_numeric(_col(vehicles, "vehicle_year"), errors="coerce"),
     })
@@ -192,12 +293,15 @@ def build_person_type(persons: pd.DataFrame) -> pd.DataFrame:
     if persons.empty or "person_type" not in persons.columns:
         return pd.DataFrame(columns=cols)
 
-    codes = (
-        persons["person_type"]
-        .dropna()
-        .pipe(lambda s: s[s.str.strip() != ""])
-        .unique()
+    normalized = persons["person_type"].map(_normalize_text).dropna()
+    if len(normalized) == 0:
+        return pd.DataFrame(columns=cols)
+    deduped = (
+        pd.DataFrame({"code": normalized})
+        .assign(key=lambda df: df["code"].map(_casefold_key))
+        .drop_duplicates(subset=["key"], keep="first")
     )
+    codes = deduped["code"].values
     if len(codes) == 0:
         return pd.DataFrame(columns=cols)
 
@@ -213,18 +317,21 @@ def build_person(persons: pd.DataFrame, person_types: pd.DataFrame) -> pd.DataFr
     if persons.empty:
         return pd.DataFrame(columns=cols)
 
-    type_lookup = (
-        {} if person_types.empty
-        else dict(zip(person_types["type_code"], person_types["person_type_id"]))
-    )
+    type_lookup = {}
+    if not person_types.empty:
+        type_lookup = {
+            _casefold_key(code): type_id
+            for code, type_id in zip(person_types["type_code"], person_types["person_type_id"])
+        }
 
     vehicle_id = _col(persons, "vehicle_id").replace("", pd.NA)
+    normalized_person_type_key = _col(persons, "person_type").map(_casefold_key)
 
     return pd.DataFrame({
         "person_id": persons["unique_id"],
         "collision_id": persons["collision_id"],
         "vehicle_id": vehicle_id,
-        "person_type_id": _col(persons, "person_type").map(type_lookup),
+        "person_type_id": normalized_person_type_key.map(type_lookup),
         "injury_type": _col(persons, "person_injury"),
         "age": pd.to_numeric(_col(persons, "person_age"), errors="coerce"),
         "sex": _col(persons, "person_sex"),
@@ -270,6 +377,9 @@ FACTOR_CATEGORIES: dict[str, str] = {
     "Traffic Control Device Improper/Non-Working": "Environmental",
     "Obstruction/Debris in Road": "Environmental",
 }
+NORMALIZED_FACTOR_CATEGORIES: dict[str, str] = {
+    _casefold_key(k): v for k, v in FACTOR_CATEGORIES.items()
+}
 
 
 def build_contributing_factor(vehicles: pd.DataFrame) -> pd.DataFrame:
@@ -281,13 +391,16 @@ def build_contributing_factor(vehicles: pd.DataFrame) -> pd.DataFrame:
     if not factor_col_names:
         return pd.DataFrame(columns=cols)
 
-    codes = (
-        pd.concat([vehicles[c] for c in factor_col_names])
-        .dropna()
-        .pipe(lambda s: s[s.str.strip() != ""])
-        .pipe(lambda s: s[s.str.lower() != "unspecified"])
-        .unique()
+    normalized = pd.concat([vehicles[c] for c in factor_col_names]).map(_normalize_text).dropna()
+    if len(normalized) == 0:
+        return pd.DataFrame(columns=cols)
+    deduped = (
+        pd.DataFrame({"code": normalized})
+        .assign(key=lambda df: df["code"].map(_casefold_key))
+        .pipe(lambda df: df[df["key"] != "unspecified"])
+        .drop_duplicates(subset=["key"], keep="first")
     )
+    codes = deduped["code"].values
     if len(codes) == 0:
         return pd.DataFrame(columns=cols)
 
@@ -295,7 +408,7 @@ def build_contributing_factor(vehicles: pd.DataFrame) -> pd.DataFrame:
         "factor_id": range(1, len(codes) + 1),
         "factor_code": codes,
         "factor_description": codes,
-        "factor_category": [FACTOR_CATEGORIES.get(c, "Unknown") for c in codes],
+        "factor_category": [NORMALIZED_FACTOR_CATEGORIES.get(_casefold_key(c), "Unknown") for c in codes],
     })
 
 
@@ -308,7 +421,10 @@ def build_vehicle_factor(vehicles: pd.DataFrame, factors: pd.DataFrame) -> pd.Da
     if not factor_col_names:
         return pd.DataFrame(columns=cols)
 
-    factor_lookup = dict(zip(factors["factor_code"], factors["factor_id"]))
+    factor_lookup = {
+        _casefold_key(code): factor_id
+        for code, factor_id in zip(factors["factor_code"], factors["factor_id"])
+    }
 
     parts = []
     for col_name in factor_col_names:
@@ -318,12 +434,13 @@ def build_vehicle_factor(vehicles: pd.DataFrame, factors: pd.DataFrame) -> pd.Da
 
     combined = (
         pd.concat(parts, ignore_index=True)
+        .assign(factor_code=lambda df: df["factor_code"].map(_normalize_text))
         .dropna(subset=["factor_code"])
-        .pipe(lambda df: df[df["factor_code"].str.strip() != ""])
-        .pipe(lambda df: df[df["factor_code"].str.lower() != "unspecified"])
-        .drop_duplicates(subset=["vehicle_id", "factor_code"])
+        .assign(factor_key=lambda df: df["factor_code"].map(_casefold_key))
+        .pipe(lambda df: df[df["factor_key"] != "unspecified"])
+        .drop_duplicates(subset=["vehicle_id", "factor_key"])
     )
-    combined["factor_id"] = combined["factor_code"].map(factor_lookup)
+    combined["factor_id"] = combined["factor_key"].map(factor_lookup)
     combined = combined.dropna(subset=["factor_id"])
 
     result = combined[["vehicle_id", "factor_id"]].reset_index(drop=True)
@@ -355,6 +472,7 @@ PRECINCT_BOROUGHS: dict[int, str] = {
     104: "QUEENS", 105: "QUEENS", 106: "QUEENS", 107: "QUEENS",
     108: "QUEENS", 109: "QUEENS", 110: "QUEENS", 111: "QUEENS",
     112: "QUEENS", 113: "QUEENS", 114: "QUEENS", 115: "QUEENS",
+    116: "QUEENS",
     # Staten Island
     120: "STATEN ISLAND", 121: "STATEN ISLAND", 122: "STATEN ISLAND",
     123: "STATEN ISLAND",
@@ -408,8 +526,8 @@ def filter_locatable_crashes(
     if crashes.empty:
         return crashes
 
-    borough_col = _col(crashes, "borough")
-    borough_null = borough_col.isna() | borough_col.str.strip().eq("")
+    borough_col = _col(crashes, "borough").map(_normalize_borough)
+    borough_null = borough_col.isna()
     lat = pd.to_numeric(_col(crashes, "latitude"), errors="coerce")
     lon = pd.to_numeric(_col(crashes, "longitude"), errors="coerce")
     has_latlon = lat.notna() & lon.notna()
@@ -431,6 +549,8 @@ def filter_locatable_crashes(
             crashes = crashes.copy()
             crashes.loc[inferred.index, "borough"] = inferred
 
+    crashes = crashes.copy()
+    crashes["borough"] = _col(crashes, "borough").map(_normalize_borough)
     borough_col = _col(crashes, "borough")
-    locatable = borough_col.notna() & (borough_col.str.strip() != "")
+    locatable = borough_col.notna()
     return crashes[locatable].reset_index(drop=True)

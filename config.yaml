@@ -6,10 +6,49 @@ socrata:
     vehicles: bm4k-52h4
     precincts: y76i-bdw7
   limit: 2000
+  crashes_page_limit: 50000
+  crashes_max_pages: null
   related_batch_size: 300
+  related_limit: 50000
+  crashes_date_filter:
+    start_date: 2020-01-01
+    end_date: 2026-03-01
+
+open_meteo:
+  archive_url: https://archive-api.open-meteo.com/v1/archive
+  timezone: America/New_York
+  visibility_source: iem_asos
+  visibility_iem_stations:
+    MANHATTAN: KLGA
+    BRONX: KLGA
+    BROOKLYN: KJFK
+    QUEENS: KJFK
+    STATEN ISLAND: KEWR
+  borough_coordinates:
+    MANHATTAN:
+      latitude: 40.7831
+      longitude: -73.9712
+    BRONX:
+      latitude: 40.8448
+      longitude: -73.8648
+    BROOKLYN:
+      latitude: 40.6782
+      longitude: -73.9442
+    QUEENS:
+      latitude: 40.7282
+      longitude: -73.7949
+    STATEN ISLAND:
+      latitude: 40.5795
+      longitude: -74.1502
+
+logging:
+  level: INFO
+  file: logs/etl.log
+  silence_meteostat_info: true
 
 output:
   directory: output
+  csv_prefix: st_
   filename: crashes_merged
   formats:
     - csv
