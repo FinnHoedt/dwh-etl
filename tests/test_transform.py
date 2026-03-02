@@ -20,7 +20,7 @@ def test_build_borough_deduplicates():
         {"collision_id": "3", "borough": "BROOKLYN"},
     ])
     result = build_borough(crashes)
-    assert len(result) == 2
+    assert len(result) == 5
 
 
 def test_build_borough_excludes_null_and_empty():
@@ -31,14 +31,14 @@ def test_build_borough_excludes_null_and_empty():
         {"collision_id": "3", "borough": ""},
     ])
     result = build_borough(crashes)
-    assert len(result) == 1
-    assert result.iloc[0]["borough_name"] == "MANHATTAN"
+    assert len(result) == 5
+    assert "MANHATTAN" in result["borough_name"].values
 
 
 def test_build_borough_empty_crashes():
     from transform import build_borough
     result = build_borough(pd.DataFrame())
-    assert result.empty
+    assert len(result) == 5
     assert list(result.columns) == ["borough_id", "borough_name", "borough_code"]
 
 
@@ -46,7 +46,7 @@ def test_build_borough_missing_column():
     from transform import build_borough
     crashes = pd.DataFrame([{"collision_id": "1"}])
     result = build_borough(crashes)
-    assert result.empty
+    assert len(result) == 5
 
 
 def test_build_location_uses_collision_id_as_location_id():
@@ -66,7 +66,8 @@ def test_build_location_maps_borough_id():
     crashes = pd.DataFrame([{"collision_id": "1", "borough": "BROOKLYN"}])
     boroughs = build_borough(crashes)
     result = build_location(crashes, boroughs)
-    assert result.iloc[0]["borough_id"] == boroughs.iloc[0]["borough_id"]
+    expected_id = boroughs.loc[boroughs["borough_name"] == "BROOKLYN", "borough_id"].iloc[0]
+    assert result.iloc[0]["borough_id"] == expected_id
 
 
 def test_build_location_falls_back_to_cross_street():
@@ -499,3 +500,10 @@ def test_build_location_null_latlon_gets_null_precinct_id():
     precinct_df = build_precinct(precincts_raw, boroughs)
     result = build_location(crashes, boroughs, precincts_gdf, precinct_df)
     assert pd.isna(result.iloc[0]["precinct_id"])
+
+
+def test_build_borough_always_includes_all_five_nyc_boroughs():
+    from transform import build_borough
+    result = build_borough(pd.DataFrame())
+    assert set(result["borough_name"]) == {"MANHATTAN", "BRONX", "BROOKLYN", "QUEENS", "STATEN ISLAND"}
+    assert len(result) == 5

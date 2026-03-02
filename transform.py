@@ -9,19 +9,21 @@ def _col(df: pd.DataFrame, name: str) -> pd.Series:
     return df[name] if name in df.columns else pd.Series(index=df.index, dtype=object)
 
 
-def build_borough(crashes: pd.DataFrame) -> pd.DataFrame:
-    cols = ["borough_id", "borough_name", "borough_code"]
-    if crashes.empty or "borough" not in crashes.columns:
-        return pd.DataFrame(columns=cols)
+NYC_BOROUGHS: list[str] = ["MANHATTAN", "BRONX", "BROOKLYN", "QUEENS", "STATEN ISLAND"]
 
-    names = (
-        crashes["borough"]
-        .dropna()
-        .pipe(lambda s: s[s.str.strip() != ""])
-        .unique()
-    )
-    if len(names) == 0:
-        return pd.DataFrame(columns=cols)
+
+def build_borough(crashes: pd.DataFrame) -> pd.DataFrame:
+    crash_names: list[str] = []
+    if not crashes.empty and "borough" in crashes.columns:
+        crash_names = (
+            crashes["borough"]
+            .dropna()
+            .pipe(lambda s: s[s.str.strip() != ""])
+            .unique()
+            .tolist()
+        )
+
+    names = list(dict.fromkeys(NYC_BOROUGHS + crash_names))
 
     return pd.DataFrame({
         "borough_id": range(1, len(names) + 1),
