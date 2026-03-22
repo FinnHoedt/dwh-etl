@@ -12,13 +12,13 @@ This report is generated from local `data_input` files and is intended to suppor
 | crash_date | str | 0.00% | 4987 | 0.00% | 100.00% |
 | crash_time | str | 0.00% | 1440 | 0.00% | 100.00% |
 | borough | str | 30.53% | 5 | 0.00% | 0.00% |
-| zip_code | object | 30.55% | 437 | 100.00% | 0.00% |
+| zip_code | str | 30.55% | 236 | 100.00% | 0.00% |
 | latitude | float64 | 10.72% | 130168 | 100.00% | 0.00% |
 | longitude | float64 | 10.72% | 101004 | 100.00% | 0.00% |
 | location | str | 10.72% | 390593 | 0.00% | 0.00% |
-| on_street_name | str | 21.89% | 23095 | 0.00% | 0.41% |
-| cross_street_name | str | 38.26% | 25142 | 0.00% | 0.47% |
-| off_street_name | str | 82.23% | 265439 | 0.00% | 0.07% |
+| on_street_name | str | 21.89% | 23095 | 0.00% | 0.02% |
+| cross_street_name | str | 38.26% | 25142 | 0.02% | 0.00% |
+| off_street_name | str | 82.23% | 265439 | 0.00% | 0.00% |
 | number_of_persons_injured | float64 | 0.00% | 32 | 100.00% | 0.00% |
 | number_of_persons_killed | float64 | 0.00% | 7 | 100.00% | 0.00% |
 | number_of_pedestrians_injured | int64 | 0.00% | 14 | 100.00% | 0.00% |
@@ -32,7 +32,7 @@ This report is generated from local `data_input` files and is intended to suppor
 | contributing_factor_vehicle_3 | str | 92.76% | 54 | 0.00% | 0.00% |
 | contributing_factor_vehicle_4 | str | 98.35% | 43 | 0.00% | 0.00% |
 | contributing_factor_vehicle_5 | str | 99.55% | 34 | 0.00% | 0.00% |
-| collision_id | int64 | 0.00% | 2244855 | 100.00% | 1.88% |
+| collision_id | int64 | 0.00% | 2244855 | 100.00% | 0.00% |
 | vehicle_type_code_1 | str | 0.74% | 1869 | 0.00% | 0.00% |
 | vehicle_type_code_2 | str | 20.26% | 2080 | 0.00% | 0.00% |
 | vehicle_type_code_3 | str | 93.05% | 301 | 0.00% | 0.00% |
@@ -46,15 +46,15 @@ This report is generated from local `data_input` files and is intended to suppor
 
 | Column | Dtype | Null % | Distinct | Numeric Parse % | Date Parse % |
 |---|---:|---:|---:|---:|---:|
-| unique_id | int64 | 0.00% | 5901072 | 100.00% | 1.60% |
-| collision_id | int64 | 0.00% | 1614722 | 100.00% | 0.19% |
+| unique_id | int64 | 0.00% | 5901072 | 100.00% | 4.38% |
+| collision_id | int64 | 0.00% | 1614722 | 100.00% | 0.02% |
 | crash_date | str | 0.00% | 4987 | 0.00% | 100.00% |
 | crash_time | str | 0.00% | 1440 | 0.00% | 100.00% |
-| person_id | str | 0.00% | 5706249 | 16.68% | 0.25% |
+| person_id | str | 0.00% | 5706249 | 2.32% | 0.08% |
 | person_type | str | 0.00% | 4 | 0.00% | 0.00% |
 | person_injury | str | 0.00% | 3 | 0.00% | 0.00% |
 | vehicle_id | float64 | 4.17% | 2739297 | 100.00% | 0.00% |
-| person_age | object | 11.24% | 1058 | 99.97% | 0.03% |
+| person_age | str | 11.24% | 910 | 99.84% | 0.16% |
 | ejection | str | 48.58% | 6 | 0.00% | 0.00% |
 | emotional_status | str | 46.89% | 8 | 0.00% | 0.00% |
 | bodily_injury | str | 46.88% | 14 | 0.00% | 0.00% |
@@ -75,18 +75,18 @@ This report is generated from local `data_input` files and is intended to suppor
 
 | Column | Dtype | Null % | Distinct | Numeric Parse % | Date Parse % |
 |---|---:|---:|---:|---:|---:|
-| unique_id | int64 | 0.00% | 4502923 | 100.00% | 3.43% |
-| collision_id | int64 | 0.00% | 2242902 | 100.00% | 1.85% |
+| unique_id | int64 | 0.00% | 4502923 | 100.00% | 4.56% |
+| collision_id | int64 | 0.00% | 2242902 | 100.00% | 3.86% |
 | crash_date | str | 0.00% | 4987 | 0.00% | 100.00% |
 | crash_time | str | 0.00% | 1440 | 0.00% | 100.00% |
-| vehicle_id | str | 0.00% | 2974098 | 42.28% | 0.40% |
+| vehicle_id | str | 0.00% | 2974098 | 82.52% | 0.78% |
 | state_registration | str | 8.04% | 82 | 0.00% | 0.00% |
 | vehicle_type | str | 6.12% | 3101 | 0.00% | 0.00% |
 | vehicle_make | str | 43.22% | 14578 | 0.00% | 0.00% |
-| vehicle_model | str | 98.86% | 2429 | 0.26% | 0.15% |
+| vehicle_model | str | 98.86% | 2429 | 0.20% | 0.24% |
 | vehicle_year | float64 | 43.78% | 340 | 100.00% | 0.00% |
 | travel_direction | str | 37.54% | 15 | 0.00% | 0.00% |
-| vehicle_occupants | object | 40.51% | 203 | 100.00% | 0.00% |
+| vehicle_occupants | str | 40.51% | 135 | 100.00% | 0.00% |
 | driver_sex | str | 51.80% | 3 | 0.00% | 0.00% |
 | driver_license_status | str | 54.13% | 3 | 0.00% | 0.00% |
 | driver_license_jurisdiction | str | 54.05% | 72 | 0.00% | 0.00% |
@@ -98,5 +98,5 @@ This report is generated from local `data_input` files and is intended to suppor
 | vehicle_damage_3 | str | 76.45% | 19 | 0.00% | 0.00% |
 | public_property_damage | str | 33.95% | 3 | 0.00% | 0.00% |
 | public_property_damage_type | str | 99.32% | 22102 | 0.00% | 0.00% |
-| contributing_factor_1 | str | 3.74% | 61 | 0.00% | 0.00% |
+| contributing_factor_1 | str | 3.74% | 61 | 0.02% | 0.00% |
 | contributing_factor_2 | str | 38.03% | 56 | 0.00% | 0.00% |
