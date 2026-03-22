@@ -24,12 +24,33 @@ def _load_data(json, Path):
 
 
 @app.cell
-def _tabs(mo):
+def _overview_tab(datasets, mo, pd):
+    rows = []
+    for name, data in datasets.items():
+        total_cells = data["row_count"] * data["column_count"]
+        total_nulls = sum(col["null_count"] for col in data["columns"].values())
+        null_pct = round(total_nulls / total_cells * 100, 2) if total_cells else 0.0
+        rows.append({
+            "Dataset": name,
+            "Rows": data["row_count"],
+            "Columns": data["column_count"],
+            "Overall Null %": null_pct,
+        })
+    overview_df = pd.DataFrame(rows)
+    overview_table = mo.ui.table(overview_df, selection=None)
+    return overview_df, overview_table
+
+
+@app.cell
+def _tabs(mo, overview_table):
     tabs = mo.ui.tabs({
-        "Overview": mo.md("_loading..._"),
-        "Crashes": mo.md("_loading..._"),
-        "Persons": mo.md("_loading..._"),
-        "Vehicles": mo.md("_loading..._"),
+        "Overview": mo.vstack([
+            mo.md("## Dataset Overview"),
+            overview_table,
+        ]),
+        "Crashes": mo.md("_coming soon_"),
+        "Persons": mo.md("_coming soon_"),
+        "Vehicles": mo.md("_coming soon_"),
     })
     tabs
     return (tabs,)
