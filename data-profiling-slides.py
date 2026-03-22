@@ -11,16 +11,17 @@ def _imports():
     import pandas as pd
     import altair as alt
     import marimo as mo
-    return alt, json, mo, pd, Path
+
+    return Path, alt, json, mo, pd
 
 
 @app.cell
-def _load_data(json, Path):
+def _load_data(Path, json):
     profile_path = Path("docs/profiling/data_profile_summary.json")
     with open(profile_path, encoding="utf-8") as f:
         profile = json.load(f)
     datasets = profile["datasets"]
-    return datasets, profile
+    return (datasets,)
 
 
 @app.cell
@@ -38,11 +39,11 @@ def _overview_tab(datasets, mo, pd):
         })
     overview_df = pd.DataFrame(rows)
     overview_table = mo.ui.table(overview_df, selection=None)
-    return overview_df, overview_table
+    return (overview_table,)
 
 
 @app.cell
-def _helpers(alt, mo, pd):
+def _helpers(alt, pd):
     def make_null_chart(data: dict) -> alt.Chart:
         rows = [
             {"column": col, "null_pct": round(meta["null_ratio"] * 100, 2)}
@@ -139,7 +140,7 @@ def _persons_components(datasets, make_null_chart, make_stats_table, mo):
 
 
 @app.cell
-def _persons_column_chart(persons_dropdown, datasets, make_column_chart):
+def _persons_column_chart(datasets, make_column_chart, persons_dropdown):
     _data = datasets["persons"]
     _selected = persons_dropdown.value
     persons_col_chart = make_column_chart(_data["columns"][_selected], _selected)
@@ -157,7 +158,7 @@ def _vehicles_components(datasets, make_null_chart, make_stats_table, mo):
 
 
 @app.cell
-def _vehicles_column_chart(vehicles_dropdown, datasets, make_column_chart):
+def _vehicles_column_chart(datasets, make_column_chart, vehicles_dropdown):
     _data = datasets["vehicles"]
     _selected = vehicles_dropdown.value
     vehicles_col_chart = make_column_chart(_data["columns"][_selected], _selected)
@@ -166,12 +167,21 @@ def _vehicles_column_chart(vehicles_dropdown, datasets, make_column_chart):
 
 @app.cell
 def _tabs(
+    crashes_col_chart,
+    crashes_dropdown,
+    crashes_null_chart,
+    crashes_stats_table,
+    datasets,
     mo,
     overview_table,
-    crashes_null_chart, crashes_stats_table, crashes_dropdown, crashes_col_chart,
-    persons_null_chart, persons_stats_table, persons_dropdown, persons_col_chart,
-    vehicles_null_chart, vehicles_stats_table, vehicles_dropdown, vehicles_col_chart,
-    datasets,
+    persons_col_chart,
+    persons_dropdown,
+    persons_null_chart,
+    persons_stats_table,
+    vehicles_col_chart,
+    vehicles_dropdown,
+    vehicles_null_chart,
+    vehicles_stats_table,
 ):
     def dataset_tab(data, null_chart, stats_table, dropdown, col_chart):
         return mo.vstack([
@@ -204,4 +214,8 @@ def _tabs(
         ),
     })
     tabs
-    return (tabs,)
+    return
+
+
+if __name__ == "__main__":
+    app.run()
