@@ -40,6 +40,22 @@ def top_values(series: pd.Series, n: int = 10) -> list[dict[str, object]]:
     return [{"value": idx, "count": int(val)} for idx, val in counts.items()]
 
 
+def compute_histogram_bins(series: pd.Series, n_bins: int = 20) -> list[dict[str, object]]:
+    numeric = pd.to_numeric(series.dropna().astype(str), errors="coerce").dropna()
+    if numeric.empty:
+        return []
+    cut, bins = pd.cut(numeric, bins=n_bins, retbins=True, include_lowest=True)
+    counts = cut.value_counts(sort=False)
+    return [
+        {
+            "bin_start": round(float(interval.left), 6),
+            "bin_end": round(float(interval.right), 6),
+            "count": int(count),
+        }
+        for interval, count in counts.items()
+    ]
+
+
 def column_profile(series: pd.Series) -> dict[str, object]:
     total = len(series)
     null_count = int(series.isna().sum())
@@ -79,6 +95,8 @@ def column_profile(series: pd.Series) -> dict[str, object]:
         "numeric_parse_ratio": numeric_ratio,
         "date_parse_ratio": date_ratio,
     }
+    if profile["format_notes"].get("numeric_parse_ratio", 0.0) >= 0.8:
+        profile["histogram"] = compute_histogram_bins(non_null)
     return profile
 
 
