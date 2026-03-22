@@ -101,6 +101,32 @@ def test_load_local_input_entity_canonicalizes_columns(tmp_path):
     assert "contributing_factor_1" in result.columns
 
 
+def test_load_local_input_entity_normalizes_person_id_columns_to_int64(tmp_path):
+    from main import _load_local_input_entity
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "persons.csv").write_text(
+        "unique_id,collision_id,vehicle_id\n"
+        "1001.0,2002.0,3003.0\n"
+    )
+    cfg = {
+        "data_input": {
+            "directory": str(data_dir),
+            "files": {"persons": "persons.csv"},
+        }
+    }
+
+    result = _load_local_input_entity(cfg, "persons")
+
+    assert str(result["unique_id"].dtype) == "Int64"
+    assert str(result["collision_id"].dtype) == "Int64"
+    assert str(result["vehicle_id"].dtype) == "Int64"
+    assert result.iloc[0]["unique_id"] == 1001
+    assert result.iloc[0]["collision_id"] == 2002
+    assert result.iloc[0]["vehicle_id"] == 3003
+
+
 def test_load_local_input_entity_missing_required_columns_raises(tmp_path):
     from main import _load_local_input_entity
 

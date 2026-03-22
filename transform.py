@@ -374,7 +374,10 @@ def build_person(persons: pd.DataFrame, person_types: pd.DataFrame) -> pd.DataFr
             for code, type_id in zip(person_types["type_code"], person_types["person_type_id"])
         }
 
-    vehicle_id = _col(persons, "vehicle_id").replace("", pd.NA)
+    vehicle_id_raw = _col(persons, "vehicle_id").replace("", pd.NA)
+    vehicle_id_numeric = pd.to_numeric(vehicle_id_raw, errors="coerce")
+    vehicle_id_integral = vehicle_id_numeric.where(vehicle_id_numeric.mod(1).eq(0))
+    vehicle_id = vehicle_id_integral.astype("Int64")
     normalized_person_type_key = _col(persons, "person_type").map(_casefold_key)
 
     return pd.DataFrame({

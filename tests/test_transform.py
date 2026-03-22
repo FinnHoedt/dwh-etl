@@ -357,7 +357,7 @@ def test_build_person_uses_unique_id():
 def test_build_person_maps_type_id():
     from transform import build_person, build_person_type
     persons = pd.DataFrame([{
-        "unique_id": "P1", "collision_id": "1", "vehicle_id": "V1",
+        "unique_id": "P1", "collision_id": "1", "vehicle_id": "1",
         "person_type": "Pedestrian", "person_injury": "None",
         "person_age": "25", "person_sex": "F",
     }])
@@ -381,7 +381,7 @@ def test_build_person_vehicle_id_nullable():
 def test_build_person_coerces_age():
     from transform import build_person, build_person_type
     persons = pd.DataFrame([{
-        "unique_id": "P1", "collision_id": "1", "vehicle_id": "V1",
+        "unique_id": "P1", "collision_id": "1", "vehicle_id": "1",
         "person_type": "Occupant", "person_injury": "Injured",
         "person_age": "not_a_number", "person_sex": "M",
     }])
@@ -395,6 +395,19 @@ def test_build_person_empty():
     result = build_person(pd.DataFrame(), pd.DataFrame())
     assert result.empty
     assert "person_id" in result.columns
+
+
+def test_build_person_coerces_vehicle_id_float_to_nullable_int():
+    from transform import build_person, build_person_type
+    persons = pd.DataFrame([{
+        "unique_id": "P1", "collision_id": "1", "vehicle_id": "1.0",
+        "person_type": "Occupant", "person_injury": "Injured",
+        "person_age": "34", "person_sex": "M",
+    }])
+    pt = build_person_type(persons)
+    result = build_person(persons, pt)
+    assert str(result["vehicle_id"].dtype) == "Int64"
+    assert result.iloc[0]["vehicle_id"] == 1
 
 
 def test_build_contributing_factor_deduplicates_across_columns():

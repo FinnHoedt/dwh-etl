@@ -11,7 +11,7 @@ socrata:
   related_batch_size: 300
   related_limit: 50000
   crashes_date_filter:
-    start_date: 2020-01-01
+    start_date: 2026-01-01
     end_date: 2026-03-01
 
 open_meteo:

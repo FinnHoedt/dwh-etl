@@ -42,6 +42,12 @@ LOCAL_COLUMN_ALIASES: dict[str, dict[str, str]] = {
     },
 }
 
+LOCAL_ID_COLUMNS: dict[str, tuple[str, ...]] = {
+    "crashes": ("collision_id",),
+    "persons": ("unique_id", "collision_id", "vehicle_id"),
+    "vehicles": ("unique_id", "collision_id"),
+}
+
 DEFAULT_BOROUGH_COORDINATES: dict[str, dict[str, float]] = {
     "MANHATTAN": {"latitude": 40.7831, "longitude": -73.9712},
     "BRONX": {"latitude": 40.8448, "longitude": -73.8648},
@@ -681,6 +687,37 @@ def _canonicalize_columns(df: pd.DataFrame, entity_name: str) -> pd.DataFrame:
     return result
 
 
+def _normalize_int_id_series(series: pd.Series) -> pd.Series:
+    cleaned = series.replace(r"^\s*$", pd.NA, regex=True)
+    numeric = pd.to_numeric(cleaned, errors="coerce")
+    integral = numeric.where(numeric.mod(1).eq(0))
+    return integral.astype("Int64")
+
+
+def _normalize_local_id_columns(df: pd.DataFrame, entity_name: str) -> pd.DataFrame:
+    id_columns = LOCAL_ID_COLUMNS.get(entity_name, ())
+    if not id_columns:
+        return df
+
+    result = df.copy()
+    for column in id_columns:
+        if column not in result.columns:
+            continue
+        original = result[column]
+        cleaned = original.replace(r"^\s*$", pd.NA, regex=True)
+        normalized = _normalize_int_id_series(cleaned)
+        invalid_count = int((cleaned.notna() & normalized.isna()).sum())
+        if invalid_count > 0:
+            logger.warning(
+                "Coerced %d invalid %s values to NULL in local %s input",
+                invalid_count,
+                column,
+                entity_name,
+            )
+        result[column] = normalized
+    return result
+
+
 def _load_local_input_entity(cfg: dict, entity_name: str) -> pd.DataFrame:
     input_cfg = cfg.get("data_input", {})
     directory = Path(input_cfg.get("directory", "data"))
@@ -707,6 +744,7 @@ def _load_local_input_entity(cfg: dict, entity_name: str) -> pd.DataFrame:
         raise ValueError(
             f"Input file {path} is missing required columns for {entity_name}: {', '.join(missing)}"
         )
+    df = _normalize_local_id_columns(df, entity_name)
     logger.info("Loaded local %s: %d rows from %s", entity_name, len(df), path)
     return df
 
@@ -807,15 +845,6 @@ def main() -> None:
     if crashes.empty:
         logger.warning("No crashes available after local load/date filter — exiting.")
         return
-
-    crashes = crashes.copy()
-    crashes["collision_id"] = crashes["collision_id"].astype(str)
-    if not vehicles.empty and "collision_id" in vehicles.columns:
-        vehicles = vehicles.copy()
-        vehicles["collision_id"] = vehicles["collision_id"].astype(str)
-    if not persons.empty and "collision_id" in persons.columns:
-        persons = persons.copy()
-        persons["collision_id"] = persons["collision_id"].astype(str)
 
     client = build_client(cfg)
     precincts_raw = fetch_dataset(client, datasets["precincts"])
