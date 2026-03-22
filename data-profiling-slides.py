@@ -111,15 +111,97 @@ def _helpers(alt, mo, pd):
 
 
 @app.cell
-def _tabs(mo, overview_table):
+def _crashes_components(datasets, make_null_chart, make_stats_table, mo):
+    _data = datasets["crashes"]
+    _col_names = list(_data["columns"].keys())
+    crashes_dropdown = mo.ui.dropdown(options=_col_names, value=_col_names[0], label="Column")
+    crashes_null_chart = make_null_chart(_data)
+    crashes_stats_table = make_stats_table(_data, mo)
+    return crashes_dropdown, crashes_null_chart, crashes_stats_table
+
+
+@app.cell
+def _crashes_column_chart(crashes_dropdown, datasets, make_column_chart):
+    _data = datasets["crashes"]
+    _selected = crashes_dropdown.value
+    crashes_col_chart = make_column_chart(_data["columns"][_selected], _selected)
+    return (crashes_col_chart,)
+
+
+@app.cell
+def _persons_components(datasets, make_null_chart, make_stats_table, mo):
+    _data = datasets["persons"]
+    _col_names = list(_data["columns"].keys())
+    persons_dropdown = mo.ui.dropdown(options=_col_names, value=_col_names[0], label="Column")
+    persons_null_chart = make_null_chart(_data)
+    persons_stats_table = make_stats_table(_data, mo)
+    return persons_dropdown, persons_null_chart, persons_stats_table
+
+
+@app.cell
+def _persons_column_chart(persons_dropdown, datasets, make_column_chart):
+    _data = datasets["persons"]
+    _selected = persons_dropdown.value
+    persons_col_chart = make_column_chart(_data["columns"][_selected], _selected)
+    return (persons_col_chart,)
+
+
+@app.cell
+def _vehicles_components(datasets, make_null_chart, make_stats_table, mo):
+    _data = datasets["vehicles"]
+    _col_names = list(_data["columns"].keys())
+    vehicles_dropdown = mo.ui.dropdown(options=_col_names, value=_col_names[0], label="Column")
+    vehicles_null_chart = make_null_chart(_data)
+    vehicles_stats_table = make_stats_table(_data, mo)
+    return vehicles_dropdown, vehicles_null_chart, vehicles_stats_table
+
+
+@app.cell
+def _vehicles_column_chart(vehicles_dropdown, datasets, make_column_chart):
+    _data = datasets["vehicles"]
+    _selected = vehicles_dropdown.value
+    vehicles_col_chart = make_column_chart(_data["columns"][_selected], _selected)
+    return (vehicles_col_chart,)
+
+
+@app.cell
+def _tabs(
+    mo,
+    overview_table,
+    crashes_null_chart, crashes_stats_table, crashes_dropdown, crashes_col_chart,
+    persons_null_chart, persons_stats_table, persons_dropdown, persons_col_chart,
+    vehicles_null_chart, vehicles_stats_table, vehicles_dropdown, vehicles_col_chart,
+    datasets,
+):
+    def dataset_tab(data, null_chart, stats_table, dropdown, col_chart):
+        return mo.vstack([
+            mo.md(f"**{data['row_count']:,} rows · {data['column_count']} columns**"),
+            mo.md("### Null % per Column"),
+            mo.ui.altair_chart(null_chart),
+            mo.md("### Column Statistics"),
+            stats_table,
+            mo.md("### Column Explorer"),
+            dropdown,
+            mo.ui.altair_chart(col_chart),
+        ])
+
     tabs = mo.ui.tabs({
         "Overview": mo.vstack([
             mo.md("## Dataset Overview"),
             overview_table,
         ]),
-        "Crashes": mo.md("_coming soon_"),
-        "Persons": mo.md("_coming soon_"),
-        "Vehicles": mo.md("_coming soon_"),
+        "Crashes": dataset_tab(
+            datasets["crashes"],
+            crashes_null_chart, crashes_stats_table, crashes_dropdown, crashes_col_chart,
+        ),
+        "Persons": dataset_tab(
+            datasets["persons"],
+            persons_null_chart, persons_stats_table, persons_dropdown, persons_col_chart,
+        ),
+        "Vehicles": dataset_tab(
+            datasets["vehicles"],
+            vehicles_null_chart, vehicles_stats_table, vehicles_dropdown, vehicles_col_chart,
+        ),
     })
     tabs
     return (tabs,)
