@@ -35,7 +35,7 @@ def read_input_file(base_dir: Path, filename: str) -> pd.DataFrame:
     return df.rename(columns=canonical)
 
 
-def top_values(series: pd.Series, n: int = 5) -> list[dict[str, object]]:
+def top_values(series: pd.Series, n: int = 10) -> list[dict[str, object]]:
     counts = series.dropna().astype(str).value_counts().head(n)
     return [{"value": idx, "count": int(val)} for idx, val in counts.items()]
 
